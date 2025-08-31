@@ -117,6 +117,7 @@ export default function TasklyApp() {
         const [movedColumn] = newColumnOrder.splice(activeIndex, 1);
         newColumnOrder.splice(overIndex, 0, movedColumn);
         
+        // Now overColumn is guaranteed to be defined due to the null check above
         taskly.reorderColumns(
           activeColumn.boardId,
           newColumnOrder.map(c => c.id)
