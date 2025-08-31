@@ -1,195 +1,140 @@
 'use client';
 
-import { DndContext, DragOverlay } from '@dnd-kit/core';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { DndContext, DragEndEvent, DragStartEvent, DragOverlay, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { useTaskly } from '@/lib/hooks';
 import BoardsPanel from '@/components/BoardsPanel';
 import BoardPanel from '@/components/BoardPanel';
 import CardModal from '@/components/CardModal';
 import CardDragOverlay from '@/components/CardDragOverlay';
 import ColumnDragOverlay from '@/components/ColumnDragOverlay';
-import type { DragStartEvent, DragEndEvent, DragData } from '@/types';
+import { Card, Column, DragData } from '@/types';
 
 export default function TasklyApp() {
   const taskly = useTaskly();
-  const [activeId, setActiveId] = useState<string | null>(null);
-  const [dragData, setDragData] = useState<DragData | null>(null);
+  const [activeCard, setActiveCard] = useState<Card | null>(null);
+  const [activeColumn, setActiveColumn] = useState<Column | null>(null);
 
-  if (!taskly.isLoaded) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-muted-foreground">Loading Taskly...</div>
-      </div>
-    );
-  }
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    })
+  );
 
   const handleDragStart = (event: DragStartEvent) => {
-    setActiveId(event.active.id as string);
-    setDragData(event.active.data.current as DragData);
+    const { active } = event;
+    const dragData = active.data.current as DragData;
+
+    if (dragData?.type === 'card') {
+      setActiveCard(dragData.card);
+    } else if (dragData?.type === 'column') {
+      setActiveColumn(dragData.column);
+    }
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
-
+    
     if (!over) {
-      setActiveId(null);
-      setDragData(null);
+      setActiveCard(null);
+      setActiveColumn(null);
       return;
     }
 
-    const activeData = active.data.current as DragData | undefined;
-    const overData = over.data.current as DragData | undefined;
-
-    if (!activeData || !overData) {
-      setActiveId(null);
-      setDragData(null);
-      return;
-    }
+    const activeData = active.data.current as DragData;
+    const overData = over.data.current as DragData;
 
     // Handle card drag
-    if (activeData.type === 'card') {
+    if (activeData?.type === 'card') {
       const card = activeData.card;
-      if (!card) {
-        setActiveId(null);
-        setDragData(null);
-        return;
-      }
-
-      if (overData.type === 'column-cards') {
+      
+      if (overData?.type === 'column-cards') {
+        // Dropped in a column
         const newColumnId = overData.columnId;
-        if (!newColumnId) {
-          setActiveId(null);
-          setDragData(null);
-          return;
+        if (card.columnId !== newColumnId) {
+          const targetCards = taskly.getColumnCards(newColumnId);
+          const newOrder = targetCards.length > 0 
+            ? Math.max(...targetCards.map(c => c.order)) + 100
+            : 100;
+          
+          taskly.moveCard(card.id, newColumnId, newOrder);
         }
-
-        // Get cards in the target column
-        const targetCards = taskly.getColumnCards(newColumnId);
-        const newOrder = targetCards.length > 0 
-          ? Math.max(...targetCards.map(c => c.order)) + 100
-          : 100;
-
-        taskly.moveCard(card.id, newColumnId, newOrder);
-      } else if (overData.type === 'card') {
-        // Handle reordering within the same column or moving to a different column
-        const overCard = taskly.appState.cards.find(c => c.id === over.id);
-        if (!overCard) {
-          setActiveId(null);
-          setDragData(null);
-          return;
+      } else if (overData?.type === 'card') {
+        // Dropped on another card
+        const targetCard = overData.card;
+        if (card.id !== targetCard.id) {
+          const newOrder = targetCard.order;
+          taskly.moveCard(card.id, targetCard.columnId, newOrder);
         }
-
-        const targetColumnId = overCard.columnId;
-        const targetCards = taskly.getColumnCards(targetColumnId);
-        const overCardIndex = targetCards.findIndex(c => c.id === overCard.id);
-        
-        let newOrder: number;
-        
-        if (overCardIndex === 0) {
-          // Moving to the beginning
-          newOrder = overCard.order - 100;
-        } else if (overCardIndex === targetCards.length - 1) {
-          // Moving to the end
-          newOrder = overCard.order + 100;
-        } else {
-          // Moving between cards
-          const prevCard = targetCards[overCardIndex - 1];
-          const nextCard = targetCards[overCardIndex + 1];
-          if (!prevCard || !nextCard) {
-            newOrder = overCard.order;
-          } else {
-            newOrder = taskly.calculateNewOrder(prevCard.order, nextCard.order);
-          }
-        }
-
-        taskly.moveCard(card.id, targetColumnId, newOrder);
       }
     }
 
     // Handle column drag
-    if (activeData.type === 'column' && overData.type === 'column') {
-      const activeColumn = activeData.column;
-      const overColumn = taskly.appState.columns.find(c => c.id === over.id);
+    if (activeData?.type === 'column') {
+      const column = activeData.column;
       
-      if (!activeColumn || !overColumn) {
-        setActiveId(null);
-        setDragData(null);
-        return;
-      }
-
-      // Additional check to ensure columns are in the same board
-      if (activeColumn.boardId !== overColumn.boardId) {
-        setActiveId(null);
-        setDragData(null);
-        return;
-      }
-
-      const boardColumns = taskly.getBoardColumns(activeColumn.boardId);
-      const activeIndex = boardColumns.findIndex(c => c.id === activeColumn.id);
-      const overIndex = boardColumns.findIndex(c => c.id === overColumn.id);
-
-      // Additional safety checks for valid indices
-      if (activeIndex === -1 || overIndex === -1) {
-        setActiveId(null);
-        setDragData(null);
-        return;
-      }
-
-      if (activeIndex !== overIndex) {
-        const newColumnOrder = [...boardColumns];
-        const [movedColumn] = newColumnOrder.splice(activeIndex, 1);
-        if (movedColumn) {
-          newColumnOrder.splice(overIndex, 0, movedColumn);
+      if (overData?.type === 'column') {
+        const targetColumn = overData.column;
+        if (column.id !== targetColumn.id) {
+          // Get current column order for the board
+          const boardColumns = taskly.getBoardColumns(column.boardId);
+          const columnIds = boardColumns.map(c => c.id);
           
-          taskly.reorderColumns(
-            overColumn.boardId,
-            newColumnOrder.map(c => c.id)
-          );
+          // Remove the active column and insert it at the target position
+          const filteredIds = columnIds.filter(id => id !== column.id);
+          const targetIndex = filteredIds.indexOf(targetColumn.id);
+          const newColumnIds = [
+            ...filteredIds.slice(0, targetIndex),
+            column.id,
+            ...filteredIds.slice(targetIndex)
+          ];
+          
+          taskly.reorderColumns(column.boardId, newColumnIds);
         }
       }
     }
 
-    setActiveId(null);
-    setDragData(null);
+    setActiveCard(null);
+    setActiveColumn(null);
   };
 
-  const renderDragOverlay = () => {
-    if (!activeId || !dragData) return null;
-
-    if (dragData.type === 'card') {
-      const card = dragData.card;
-      return card ? <CardDragOverlay card={card} /> : null;
-    }
-
-    if (dragData.type === 'column') {
-      const column = dragData.column;
-      return column ? <ColumnDragOverlay column={column} /> : null;
-    }
-
-    return null;
-  };
+  // Show loading state
+  if (!taskly.isLoaded) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
 
   return (
-    <DndContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-      <div className="min-h-screen bg-background">
+    <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+      <main className="min-h-screen bg-background">
         {taskly.uiState.currentView === 'boards' && (
           <BoardsPanel taskly={taskly} />
         )}
+
         {taskly.uiState.currentView === 'board' && taskly.selectedBoard && (
           <BoardPanel taskly={taskly} board={taskly.selectedBoard} />
         )}
-        {taskly.uiState.currentView === 'card' && taskly.selectedCard && (
-          <CardModal 
-            taskly={taskly} 
-            card={taskly.selectedCard} 
-            onClose={() => taskly.selectCard(null)} 
+
+        {/* Card Modal */}
+        {taskly.selectedCard && (
+          <CardModal
+            taskly={taskly}
+            card={taskly.selectedCard}
+            onClose={() => taskly.selectCard(null)}
           />
         )}
-      </div>
-      
-      <DragOverlay>
-        {renderDragOverlay()}
-      </DragOverlay>
+
+        {/* Drag Overlays */}
+        <DragOverlay>
+          {activeCard && <CardDragOverlay card={activeCard} />}
+          {activeColumn && <ColumnDragOverlay column={activeColumn} />}
+        </DragOverlay>
+      </main>
     </DndContext>
   );
 }
