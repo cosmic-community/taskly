@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { X, Calendar, Tag, AlignLeft, Trash2, Archive, MoreVertical, Sparkles, Save } from 'lucide-react';
+import { X, Calendar, Tag, AlignLeft, Trash2, Archive, MoreVertical, Sparkles, Save, Check } from 'lucide-react';
 import { Card } from '@/types';
 import { useTaskly } from '@/lib/hooks';
 
@@ -19,6 +19,7 @@ export default function CardModal({ taskly, card, onClose }: CardModalProps) {
   const [newLabel, setNewLabel] = useState('');
   const [showMenu, setShowMenu] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   // Track changes
   useEffect(() => {
@@ -61,6 +62,27 @@ export default function CardModal({ taskly, card, onClose }: CardModalProps) {
       e.preventDefault();
       handleAddLabel();
     }
+  };
+
+  const handleSaveAndClose = async () => {
+    if (hasChanges) {
+      setIsSaving(true);
+      try {
+        await taskly.updateCard(card.id, {
+          title: title.trim() || 'Untitled',
+          description: description.trim() || undefined,
+          labels: labels.length > 0 ? labels : undefined,
+          dueDate: dueDate || undefined,
+        });
+        // Small delay to show the saving state
+        await new Promise(resolve => setTimeout(resolve, 300));
+      } catch (error) {
+        console.error('Error saving card:', error);
+      } finally {
+        setIsSaving(false);
+      }
+    }
+    onClose();
   };
 
   const handleArchiveCard = () => {
@@ -113,10 +135,16 @@ export default function CardModal({ taskly, card, onClose }: CardModalProps) {
                 className="text-2xl font-bold w-full bg-transparent border-none outline-none text-foreground placeholder-muted-foreground"
                 placeholder="Card title..."
               />
-              {hasChanges && (
+              {hasChanges && !isSaving && (
                 <div className="flex items-center gap-2 mt-3 text-xs text-primary">
                   <Save className="w-3 h-3 animate-pulse" />
                   <span>Auto-saving changes...</span>
+                </div>
+              )}
+              {isSaving && (
+                <div className="flex items-center gap-2 mt-3 text-xs text-success">
+                  <div className="w-3 h-3 animate-spin rounded-full border-2 border-success border-t-transparent" />
+                  <span>Saving...</span>
                 </div>
               )}
             </div>
@@ -264,6 +292,51 @@ export default function CardModal({ taskly, card, onClose }: CardModalProps) {
                   Clear Date
                 </button>
               )}
+            </div>
+          </div>
+        </div>
+
+        {/* Footer with Save & Close Button */}
+        <div className="border-t border-border/20 p-6 bg-gradient-to-r from-primary/5 to-accent/5">
+          <div className="flex items-center justify-between">
+            <div className="text-sm text-muted-foreground">
+              {hasChanges ? (
+                <span className="flex items-center gap-2 text-primary">
+                  <Save className="w-3 h-3" />
+                  Unsaved changes
+                </span>
+              ) : (
+                <span className="flex items-center gap-2 text-success">
+                  <Check className="w-3 h-3" />
+                  All changes saved
+                </span>
+              )}
+            </div>
+            
+            <div className="flex items-center gap-3">
+              <button
+                onClick={onClose}
+                className="btn-secondary"
+              >
+                Close
+              </button>
+              <button
+                onClick={handleSaveAndClose}
+                disabled={isSaving}
+                className="btn-primary flex items-center gap-2 min-w-[140px] justify-center"
+              >
+                {isSaving ? (
+                  <>
+                    <div className="w-4 h-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    <span>Saving...</span>
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-4 h-4" />
+                    <span>Save & Close</span>
+                  </>
+                )}
+              </button>
             </div>
           </div>
         </div>
