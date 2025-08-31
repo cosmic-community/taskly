@@ -94,7 +94,7 @@ export default function TasklyApp() {
       const activeColumn = activeData.column;
       const overColumn = taskly.appState.columns.find(c => c.id === over.id);
       
-      // Fixed: Ensure both columns exist and are in the same board
+      // FIXED: Add explicit null check for overColumn before accessing properties
       if (!activeColumn || !overColumn) {
         setActiveId(null);
         setDragData(null);
@@ -124,8 +124,7 @@ export default function TasklyApp() {
         const [movedColumn] = newColumnOrder.splice(activeIndex, 1);
         newColumnOrder.splice(overIndex, 0, movedColumn);
         
-        // Now we're certain both activeColumn and overColumn exist and are valid
-        // Use overColumn.boardId since we've verified it matches activeColumn.boardId
+        // FIXED: Now we're certain overColumn exists due to the null check above
         taskly.reorderColumns(
           overColumn.boardId,
           newColumnOrder.map(c => c.id)
