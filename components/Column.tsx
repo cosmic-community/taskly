@@ -164,7 +164,7 @@ export default function ColumnComponent({ column, taskly, labelFilter = [] }: Co
                 </span>
               </div>
               
-              <div className="relative">
+              <div className="relative z-[100]">
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
@@ -178,10 +178,10 @@ export default function ColumnComponent({ column, taskly, labelFilter = [] }: Co
                 {showColumnMenu && (
                   <>
                     <div
-                      className="fixed inset-0 z-10"
+                      className="fixed inset-0 z-[90]"
                       onClick={() => setShowColumnMenu(false)}
                     />
-                    <div className="absolute top-full right-0 mt-2 w-44 glass border border-border/30 rounded-xl shadow-card z-20 overflow-hidden">
+                    <div className="absolute top-full right-0 mt-2 w-44 glass border border-border/30 rounded-xl shadow-card z-[110] overflow-hidden">
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
