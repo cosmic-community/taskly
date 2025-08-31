@@ -94,7 +94,7 @@ export default function TasklyApp() {
       const activeColumn = activeData.column;
       const overColumn = taskly.appState.columns.find(c => c.id === over.id);
       
-      // FIXED: Ensure both columns exist before proceeding - this resolves the TS2345 error
+      // FIXED: Add explicit null check for overColumn before proceeding
       if (!activeColumn || !overColumn) {
         setActiveId(null);
         setDragData(null);
