@@ -1,7 +1,7 @@
 'use client';
 
 import { Calendar, Tag, AlignLeft } from 'lucide-react';
-import { useSortable } from '@dnd-kit/core';
+import { useSortable } from '@dnd-kit/sortable';
 import { Card } from '@/types';
 
 interface CardProps {
