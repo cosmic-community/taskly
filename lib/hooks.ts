@@ -204,7 +204,9 @@ export const useTaskly = () => {
     setUIState(prev => ({ 
       ...prev, 
       selectedCardId: cardId,
-      currentView: cardId ? 'card' : prev.currentView,
+      // When closing a card modal (cardId is null), return to the appropriate view
+      // If we have a selected board, show the board view, otherwise show boards view
+      currentView: cardId ? 'card' : (prev.selectedBoardId ? 'board' : 'boards'),
     }));
   }, []);
 
