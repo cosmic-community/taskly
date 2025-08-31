@@ -112,12 +112,19 @@ export default function TasklyApp() {
       const activeIndex = boardColumns.findIndex(c => c.id === activeColumn.id);
       const overIndex = boardColumns.findIndex(c => c.id === overColumn.id);
 
+      // Additional safety checks for valid indices
+      if (activeIndex === -1 || overIndex === -1) {
+        setActiveId(null);
+        setDragData(null);
+        return;
+      }
+
       if (activeIndex !== overIndex) {
         const newColumnOrder = [...boardColumns];
         const [movedColumn] = newColumnOrder.splice(activeIndex, 1);
         newColumnOrder.splice(overIndex, 0, movedColumn);
         
-        // Now we're certain overColumn exists due to the checks above
+        // Now we're certain overColumn exists and all validation passed
         taskly.reorderColumns(
           activeColumn.boardId,
           newColumnOrder.map(c => c.id)
