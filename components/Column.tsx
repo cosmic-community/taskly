@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Plus, MoreVertical, Edit2, Trash2, Hash, Zap } from 'lucide-react';
 import { useSortable } from '@dnd-kit/sortable';
 import { useDroppable } from '@dnd-kit/core';
@@ -12,16 +12,30 @@ import CardComponent from '@/components/Card';
 interface ColumnProps {
   column: Column;
   taskly: ReturnType<typeof useTaskly>;
+  labelFilter?: string[];
 }
 
-export default function ColumnComponent({ column, taskly }: ColumnProps) {
+export default function ColumnComponent({ column, taskly, labelFilter = [] }: ColumnProps) {
   const [isCreatingCard, setIsCreatingCard] = useState(false);
   const [newCardTitle, setNewCardTitle] = useState('');
   const [showColumnMenu, setShowColumnMenu] = useState(false);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editedTitle, setEditedTitle] = useState(column.title);
 
-  const cards = taskly.getColumnCards(column.id);
+  const allCards = taskly.getColumnCards(column.id);
+  
+  // Filter cards based on label filter
+  const cards = useMemo(() => {
+    if (labelFilter.length === 0) {
+      return allCards;
+    }
+    
+    return allCards.filter(card => 
+      card.labels && 
+      labelFilter.some(selectedLabel => card.labels!.includes(selectedLabel))
+    );
+  }, [allCards, labelFilter]);
+  
   const cardIds = cards.map(card => card.id);
 
   const {
@@ -89,8 +103,8 @@ export default function ColumnComponent({ column, taskly }: ColumnProps) {
   };
 
   const handleDeleteColumn = () => {
-    if (cards.length > 0) {
-      if (window.confirm(`Delete "${column.title}" and all ${cards.length} cards in it?`)) {
+    if (allCards.length > 0) {
+      if (window.confirm(`Delete "${column.title}" and all ${allCards.length} cards in it?`)) {
         taskly.deleteColumn(column.id);
       }
     } else {
@@ -136,9 +150,18 @@ export default function ColumnComponent({ column, taskly }: ColumnProps) {
             </div>
             
             <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1 px-2.5 py-1 bg-primary/20 text-primary rounded-lg border border-primary/20">
+              <div className={`flex items-center gap-1 px-2.5 py-1 rounded-lg border ${
+                labelFilter.length > 0 && cards.length !== allCards.length
+                  ? 'bg-warning/20 text-warning border-warning/20'
+                  : 'bg-primary/20 text-primary border-primary/20'
+              }`}>
                 <Zap className="w-3 h-3" />
-                <span className="text-xs font-semibold">{cards.length}</span>
+                <span className="text-xs font-semibold">
+                  {labelFilter.length > 0 && cards.length !== allCards.length 
+                    ? `${cards.length}/${allCards.length}`
+                    : cards.length
+                  }
+                </span>
               </div>
               
               <div className="relative">
@@ -205,6 +228,14 @@ export default function ColumnComponent({ column, taskly }: ColumnProps) {
               </div>
             ))}
           </SortableContext>
+
+          {/* Show message if cards are filtered out */}
+          {labelFilter.length > 0 && cards.length === 0 && allCards.length > 0 && (
+            <div className="p-4 text-center text-muted-foreground border-2 border-dashed border-muted rounded-xl">
+              <div className="text-sm">No cards match the current label filter</div>
+              <div className="text-xs mt-1 opacity-75">{allCards.length} card{allCards.length !== 1 ? 's' : ''} in this column</div>
+            </div>
+          )}
 
           {/* Add Card */}
           {isCreatingCard ? (

@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { ArrowLeft, Plus, MoreVertical, Settings, Trash2, Sparkles } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { ArrowLeft, Plus, MoreVertical, Settings, Trash2, Sparkles, Filter, X, Tag } from 'lucide-react';
 import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, horizontalListSortingStrategy } from '@dnd-kit/sortable';
 import { Board } from '@/types';
@@ -19,9 +19,25 @@ export default function BoardPanel({ taskly, board }: BoardPanelProps) {
   const [showBoardMenu, setShowBoardMenu] = useState(false);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editedTitle, setEditedTitle] = useState(board.title);
+  const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
+  const [showLabelFilter, setShowLabelFilter] = useState(false);
 
   const columns = taskly.getBoardColumns(board.id);
   const columnIds = columns.map(col => col.id);
+
+  // Get all unique labels from cards in this board
+  const allLabels = useMemo(() => {
+    const boardCards = taskly.appState.cards.filter(c => c.boardId === board.id && !c.isArchived);
+    const labelSet = new Set<string>();
+    
+    boardCards.forEach(card => {
+      if (card.labels) {
+        card.labels.forEach(label => labelSet.add(label));
+      }
+    });
+    
+    return Array.from(labelSet).sort();
+  }, [taskly.appState.cards, board.id]);
 
   const { setNodeRef } = useDroppable({
     id: `board-${board.id}`,
@@ -70,6 +86,31 @@ export default function BoardPanel({ taskly, board }: BoardPanelProps) {
       taskly.selectBoard(null);
     }
   };
+
+  const toggleLabelFilter = (label: string) => {
+    setSelectedLabels(prev => 
+      prev.includes(label) 
+        ? prev.filter(l => l !== label)
+        : [...prev, label]
+    );
+  };
+
+  const clearAllFilters = () => {
+    setSelectedLabels([]);
+  };
+
+  const filteredCardsCount = useMemo(() => {
+    if (selectedLabels.length === 0) {
+      return taskly.appState.cards.filter(c => c.boardId === board.id && !c.isArchived).length;
+    }
+    
+    return taskly.appState.cards.filter(c => 
+      c.boardId === board.id && 
+      !c.isArchived && 
+      c.labels && 
+      selectedLabels.some(selectedLabel => c.labels!.includes(selectedLabel))
+    ).length;
+  }, [taskly.appState.cards, board.id, selectedLabels]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -123,10 +164,100 @@ export default function BoardPanel({ taskly, board }: BoardPanelProps) {
               <div className="flex items-center gap-2 px-3 py-1.5 bg-secondary/50 rounded-lg border border-border/30">
                 <span className="text-sm text-muted-foreground">Cards:</span>
                 <span className="text-sm font-semibold text-accent">
-                  {taskly.appState.cards.filter(c => c.boardId === board.id && !c.isArchived).length}
+                  {selectedLabels.length > 0 ? `${filteredCardsCount} filtered` : filteredCardsCount}
                 </span>
               </div>
             </div>
+
+            {/* Label Filter */}
+            {allLabels.length > 0 && (
+              <div className="relative">
+                <button
+                  onClick={() => setShowLabelFilter(!showLabelFilter)}
+                  className={`p-3 rounded-xl transition-all duration-200 border flex items-center gap-2 ${
+                    selectedLabels.length > 0
+                      ? 'bg-primary/20 border-primary/30 text-primary'
+                      : 'hover:bg-secondary/50 border-transparent hover:border-border/30'
+                  }`}
+                >
+                  <Filter className="w-4 h-4" />
+                  {selectedLabels.length > 0 && (
+                    <span className="text-xs font-semibold bg-primary/30 px-1.5 py-0.5 rounded">
+                      {selectedLabels.length}
+                    </span>
+                  )}
+                </button>
+
+                {showLabelFilter && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-10"
+                      onClick={() => setShowLabelFilter(false)}
+                    />
+                    <div className="absolute top-full right-0 mt-2 w-80 glass border border-border/30 rounded-xl shadow-card z-20 overflow-hidden">
+                      <div className="p-4 border-b border-border/20">
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="font-semibold text-sm flex items-center gap-2">
+                            <Tag className="w-4 h-4 text-primary" />
+                            Filter by Labels
+                          </h4>
+                          {selectedLabels.length > 0 && (
+                            <button
+                              onClick={clearAllFilters}
+                              className="text-xs text-muted-foreground hover:text-foreground transition-colors duration-200 flex items-center gap-1"
+                            >
+                              <X className="w-3 h-3" />
+                              Clear all
+                            </button>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Select labels to filter cards. Only cards with selected labels will be shown.
+                        </p>
+                      </div>
+                      
+                      <div className="max-h-60 overflow-y-auto p-4">
+                        <div className="space-y-2">
+                          {allLabels.map((label) => {
+                            const isSelected = selectedLabels.includes(label);
+                            const cardCount = taskly.appState.cards.filter(c => 
+                              c.boardId === board.id && 
+                              !c.isArchived && 
+                              c.labels && 
+                              c.labels.includes(label)
+                            ).length;
+
+                            return (
+                              <button
+                                key={label}
+                                onClick={() => toggleLabelFilter(label)}
+                                className={`w-full flex items-center justify-between p-3 rounded-lg border transition-all duration-200 ${
+                                  isSelected
+                                    ? 'bg-primary/20 border-primary/30 text-primary'
+                                    : 'hover:bg-secondary/50 border-border/20 hover:border-border/40'
+                                }`}
+                              >
+                                <div className="flex items-center gap-3">
+                                  <div className={`w-3 h-3 rounded border-2 transition-all duration-200 ${
+                                    isSelected
+                                      ? 'bg-primary border-primary'
+                                      : 'border-border/40'
+                                  }`} />
+                                  <span className="text-sm font-medium">{label}</span>
+                                </div>
+                                <span className="text-xs text-muted-foreground bg-secondary/50 px-2 py-1 rounded">
+                                  {cardCount}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
 
             <div className="relative">
               <button
@@ -184,6 +315,7 @@ export default function BoardPanel({ taskly, board }: BoardPanelProps) {
                 <ColumnComponent 
                   column={column} 
                   taskly={taskly}
+                  labelFilter={selectedLabels}
                 />
               </div>
             ))}
