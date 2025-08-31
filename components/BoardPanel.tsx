@@ -115,7 +115,7 @@ export default function BoardPanel({ taskly, board }: BoardPanelProps) {
   return (
     <div className="min-h-screen bg-background">
       {/* Modern Header */}
-      <header className="glass border-b border-border/20 px-6 py-4 relative overflow-hidden">
+      <header className="glass border-b border-border/20 px-6 py-4 relative overflow-hidden z-30">
         <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-accent/5" />
         <div className="relative flex items-center justify-between max-w-none">
           <div className="flex items-center gap-6">
@@ -171,7 +171,7 @@ export default function BoardPanel({ taskly, board }: BoardPanelProps) {
 
             {/* Label Filter */}
             {allLabels.length > 0 && (
-              <div className="relative">
+              <div className="relative z-40">
                 <button
                   onClick={() => setShowLabelFilter(!showLabelFilter)}
                   className={`p-3 rounded-xl transition-all duration-200 border flex items-center gap-2 ${
@@ -191,10 +191,10 @@ export default function BoardPanel({ taskly, board }: BoardPanelProps) {
                 {showLabelFilter && (
                   <>
                     <div
-                      className="fixed inset-0 z-10"
+                      className="fixed inset-0 z-40"
                       onClick={() => setShowLabelFilter(false)}
                     />
-                    <div className="absolute top-full right-0 mt-2 w-80 glass border border-border/30 rounded-xl shadow-card z-20 overflow-hidden">
+                    <div className="absolute top-full right-0 mt-2 w-80 glass border border-border/30 rounded-xl shadow-card z-50 overflow-hidden">
                       <div className="p-4 border-b border-border/20">
                         <div className="flex items-center justify-between mb-3">
                           <h4 className="font-semibold text-sm flex items-center gap-2">
@@ -259,7 +259,7 @@ export default function BoardPanel({ taskly, board }: BoardPanelProps) {
               </div>
             )}
 
-            <div className="relative">
+            <div className="relative z-40">
               <button
                 onClick={() => setShowBoardMenu(!showBoardMenu)}
                 className="p-3 hover:bg-secondary/50 rounded-xl transition-colors duration-200 border border-transparent hover:border-border/30"
@@ -270,10 +270,10 @@ export default function BoardPanel({ taskly, board }: BoardPanelProps) {
               {showBoardMenu && (
                 <>
                   <div
-                    className="fixed inset-0 z-10"
+                    className="fixed inset-0 z-40"
                     onClick={() => setShowBoardMenu(false)}
                   />
-                  <div className="absolute top-full right-0 mt-2 w-56 glass border border-border/30 rounded-xl shadow-card z-20 overflow-hidden">
+                  <div className="absolute top-full right-0 mt-2 w-56 glass border border-border/30 rounded-xl shadow-card z-50 overflow-hidden">
                     <button
                       onClick={() => {
                         setIsEditingTitle(true);
@@ -306,7 +306,7 @@ export default function BoardPanel({ taskly, board }: BoardPanelProps) {
       {/* Columns */}
       <div 
         ref={setNodeRef}
-        className="p-6 overflow-x-auto min-h-[calc(100vh-120px)]"
+        className="p-6 overflow-x-auto min-h-[calc(100vh-120px)] relative z-10"
       >
         <div className="flex gap-6 min-w-max pb-6">
           <SortableContext items={columnIds} strategy={horizontalListSortingStrategy}>
