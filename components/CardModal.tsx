@@ -113,7 +113,7 @@ export default function CardModal({ taskly, card, onClose }: CardModalProps) {
   const board = taskly.appState.boards.find(b => b.id === card.boardId);
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[9999]">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[10000]">
       <div className="glass border border-border/30 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl animate-scale-in">
         {/* Header */}
         <div className="relative p-6 border-b border-border/20 bg-gradient-to-r from-primary/5 to-accent/5">
@@ -150,7 +150,7 @@ export default function CardModal({ taskly, card, onClose }: CardModalProps) {
             </div>
             
             <div className="flex items-center gap-2 ml-6">
-              <div className="relative z-[9999]">
+              <div className="relative">
                 <button
                   onClick={() => setShowMenu(!showMenu)}
                   className="p-3 hover:bg-secondary/50 rounded-xl transition-colors duration-200"
@@ -162,7 +162,7 @@ export default function CardModal({ taskly, card, onClose }: CardModalProps) {
                 {showMenu && (
                   <>
                     <div
-                      className="fixed inset-0 z-[9990]"
+                      className="fixed inset-0 z-[9998]"
                       onClick={() => setShowMenu(false)}
                     />
                     <div className="absolute top-full right-0 mt-2 w-52 glass border border-border/30 rounded-xl shadow-card z-[9999] overflow-hidden">

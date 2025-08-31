@@ -115,7 +115,7 @@ export default function BoardPanel({ taskly, board }: BoardPanelProps) {
   return (
     <div className="min-h-screen bg-background">
       {/* Modern Header */}
-      <header className="glass border-b border-border/20 px-6 py-4 relative overflow-hidden z-30">
+      <header className="glass border-b border-border/20 px-6 py-4 relative overflow-visible z-50">
         <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-accent/5" />
         <div className="relative flex items-center justify-between max-w-none">
           <div className="flex items-center gap-6">
@@ -171,7 +171,7 @@ export default function BoardPanel({ taskly, board }: BoardPanelProps) {
 
             {/* Label Filter */}
             {allLabels.length > 0 && (
-              <div className="relative z-[9999]">
+              <div className="relative">
                 <button
                   onClick={() => setShowLabelFilter(!showLabelFilter)}
                   className={`p-3 rounded-xl transition-all duration-200 border flex items-center gap-2 ${
@@ -191,7 +191,7 @@ export default function BoardPanel({ taskly, board }: BoardPanelProps) {
                 {showLabelFilter && (
                   <>
                     <div
-                      className="fixed inset-0 z-[9990]"
+                      className="fixed inset-0 z-[9998]"
                       onClick={() => setShowLabelFilter(false)}
                     />
                     <div className="absolute top-full right-0 mt-2 w-80 glass border border-border/30 rounded-xl shadow-card z-[9999] overflow-hidden">
@@ -259,7 +259,7 @@ export default function BoardPanel({ taskly, board }: BoardPanelProps) {
               </div>
             )}
 
-            <div className="relative z-[9999]">
+            <div className="relative">
               <button
                 onClick={() => setShowBoardMenu(!showBoardMenu)}
                 className="p-3 hover:bg-secondary/50 rounded-xl transition-colors duration-200 border border-transparent hover:border-border/30"
@@ -270,7 +270,7 @@ export default function BoardPanel({ taskly, board }: BoardPanelProps) {
               {showBoardMenu && (
                 <>
                   <div
-                    className="fixed inset-0 z-[9990]"
+                    className="fixed inset-0 z-[9998]"
                     onClick={() => setShowBoardMenu(false)}
                   />
                   <div className="absolute top-full right-0 mt-2 w-56 glass border border-border/30 rounded-xl shadow-card z-[9999] overflow-hidden">
