@@ -57,7 +57,6 @@ export default function CardComponent({ card, onClick }: CardProps) {
       style={style}
       {...attributes}
       {...listeners}
-      onClick={onClick}
       className="group glass-light border border-border/20 rounded-xl p-4 cursor-pointer hover:border-primary/30 hover:shadow-card-hover card-hover transition-all duration-300 relative overflow-hidden"
     >
       {/* Subtle gradient overlay */}
@@ -68,18 +67,21 @@ export default function CardComponent({ card, onClick }: CardProps) {
           {card.title}
         </h4>
 
+        {/* Description - Show actual content instead of just indicator */}
+        {card.description && (
+          <div className="mb-3 p-2 bg-secondary/30 rounded-lg border border-border/20">
+            <div className="flex items-center gap-2 mb-1">
+              <AlignLeft className="w-3 h-3 text-muted-foreground" />
+              <span className="text-xs text-muted-foreground font-medium">Description</span>
+            </div>
+            <p className="text-xs text-foreground/80 line-clamp-2 leading-relaxed">
+              {card.description}
+            </p>
+          </div>
+        )}
+
         {/* Card Details */}
         <div className="space-y-2.5">
-          {/* Description indicator */}
-          {card.description && (
-            <div className="flex items-center gap-2 text-muted-foreground group-hover:text-accent transition-colors duration-200">
-              <div className="p-1 bg-secondary/50 rounded-md">
-                <AlignLeft className="w-3 h-3" />
-              </div>
-              <span className="text-xs font-medium">Has description</span>
-            </div>
-          )}
-
           {/* Labels */}
           {card.labels && card.labels.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
@@ -122,6 +124,15 @@ export default function CardComponent({ card, onClick }: CardProps) {
             </div>
           )}
         </div>
+        
+        {/* Click target overlay - prevents drag when clicking to open modal */}
+        <div 
+          className="absolute inset-0 cursor-pointer z-10" 
+          onClick={(e) => {
+            e.stopPropagation();
+            onClick();
+          }}
+        />
         
         {/* Hover indicator */}
         <div className="absolute -top-1 -right-1 w-2 h-2 bg-primary rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200 shadow-glow" />

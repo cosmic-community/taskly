@@ -24,7 +24,7 @@ export default function CardModal({ taskly, card, onClose }: CardModalProps) {
   useEffect(() => {
     const hasChanges = title.trim() !== card.title || 
                       description !== (card.description || '') ||
-                      JSON.stringify(labels) !== JSON.stringify(card.labels || []) ||
+                      JSON.stringify(labels.sort()) !== JSON.stringify((card.labels || []).sort()) ||
                       dueDate !== (card.dueDate || '');
     setHasChanges(hasChanges);
   }, [title, description, labels, dueDate, card]);
@@ -43,7 +43,7 @@ export default function CardModal({ taskly, card, onClose }: CardModalProps) {
     }, 500);
 
     return () => clearTimeout(timeoutId);
-  }, [title, description, labels, dueDate, card, taskly, hasChanges]);
+  }, [title, description, labels, dueDate, card.id, taskly, hasChanges]);
 
   const handleAddLabel = () => {
     if (newLabel.trim() && !labels.includes(newLabel.trim())) {
@@ -58,6 +58,7 @@ export default function CardModal({ taskly, card, onClose }: CardModalProps) {
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
+      e.preventDefault();
       handleAddLabel();
     }
   };
@@ -74,6 +75,18 @@ export default function CardModal({ taskly, card, onClose }: CardModalProps) {
     }
   };
 
+  // Handle modal close on escape key
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [onClose]);
+
   const column = taskly.appState.columns.find(c => c.id === card.columnId);
   const board = taskly.appState.boards.find(b => b.id === card.boardId);
 
@@ -89,9 +102,9 @@ export default function CardModal({ taskly, card, onClose }: CardModalProps) {
                 <div className="p-1.5 bg-gradient-primary rounded-lg shadow-glow">
                   <Sparkles className="w-3 h-3 text-white" />
                 </div>
-                <span>{board?.title}</span>
+                <span>{board?.title || 'Unknown Board'}</span>
                 <span className="opacity-50">/</span>
-                <span>{column?.title}</span>
+                <span>{column?.title || 'Unknown Column'}</span>
               </div>
               <input
                 type="text"
@@ -102,7 +115,7 @@ export default function CardModal({ taskly, card, onClose }: CardModalProps) {
               />
               {hasChanges && (
                 <div className="flex items-center gap-2 mt-3 text-xs text-primary">
-                  <Save className="w-3 h-3" />
+                  <Save className="w-3 h-3 animate-pulse" />
                   <span>Auto-saving changes...</span>
                 </div>
               )}
@@ -113,6 +126,7 @@ export default function CardModal({ taskly, card, onClose }: CardModalProps) {
                 <button
                   onClick={() => setShowMenu(!showMenu)}
                   className="p-3 hover:bg-secondary/50 rounded-xl transition-colors duration-200"
+                  aria-label="Card menu"
                 >
                   <MoreVertical className="w-4 h-4" />
                 </button>
@@ -153,6 +167,7 @@ export default function CardModal({ taskly, card, onClose }: CardModalProps) {
               <button
                 onClick={onClose}
                 className="p-3 hover:bg-secondary/50 rounded-xl transition-colors duration-200"
+                aria-label="Close modal"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -192,15 +207,16 @@ export default function CardModal({ taskly, card, onClose }: CardModalProps) {
             {labels.length > 0 && (
               <div className="flex flex-wrap gap-2 mb-4">
                 {labels.map((label, index) => (
-                  <span
+                  <button
                     key={index}
-                    className="group inline-flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-primary/20 to-accent/20 text-primary text-sm rounded-xl border border-primary/20 cursor-pointer hover:from-primary/30 hover:to-accent/30 transition-all duration-200"
+                    className="group inline-flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-primary/20 to-accent/20 text-primary text-sm rounded-xl border border-primary/20 hover:from-primary/30 hover:to-accent/30 transition-all duration-200"
                     onClick={() => handleRemoveLabel(label)}
+                    title={`Remove "${label}" label`}
                   >
                     <Tag className="w-3 h-3" />
                     {label}
-                    <X className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </span>
+                    <X className="w-3 h-3 opacity-60 group-hover:opacity-100 transition-opacity" />
+                  </button>
                 ))}
               </div>
             )}
@@ -217,7 +233,8 @@ export default function CardModal({ taskly, card, onClose }: CardModalProps) {
               />
               <button
                 onClick={handleAddLabel}
-                className="btn-primary"
+                disabled={!newLabel.trim() || labels.includes(newLabel.trim())}
+                className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Add Label
               </button>
@@ -232,12 +249,22 @@ export default function CardModal({ taskly, card, onClose }: CardModalProps) {
               </div>
               Due Date
             </label>
-            <input
-              type="datetime-local"
-              value={dueDate}
-              onChange={(e) => setDueDate(e.target.value)}
-              className="input-modern w-full"
-            />
+            <div className="flex gap-3">
+              <input
+                type="datetime-local"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+                className="input-modern flex-1"
+              />
+              {dueDate && (
+                <button
+                  onClick={() => setDueDate('')}
+                  className="btn-secondary whitespace-nowrap"
+                >
+                  Clear Date
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>
