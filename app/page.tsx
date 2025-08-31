@@ -124,9 +124,10 @@ export default function TasklyApp() {
         const [movedColumn] = newColumnOrder.splice(activeIndex, 1);
         newColumnOrder.splice(overIndex, 0, movedColumn);
         
-        // Now we're certain overColumn exists and all validation passed
+        // Now we're certain both activeColumn and overColumn exist and are valid
+        // Use overColumn.boardId since we've verified it matches activeColumn.boardId
         taskly.reorderColumns(
-          activeColumn.boardId,
+          overColumn.boardId,
           newColumnOrder.map(c => c.id)
         );
       }
