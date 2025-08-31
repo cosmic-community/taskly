@@ -33,7 +33,7 @@ export const useTaskly = () => {
   }, [appState, isLoaded]);
 
   // Board operations
-  const createBoard = useCallback((title: string) => {
+  const createBoard = useCallback((title: string): string => {
     const existingOrders = appState.boards.map(b => b.order);
     const newBoard: Board = {
       id: nanoid(),
@@ -69,7 +69,7 @@ export const useTaskly = () => {
   }, []);
 
   // Column operations
-  const createColumn = useCallback((boardId: string, title: string) => {
+  const createColumn = useCallback((boardId: string, title: string): string => {
     const existingOrders = appState.columns
       .filter(c => c.boardId === boardId)
       .map(c => c.order);
@@ -135,7 +135,7 @@ export const useTaskly = () => {
   }, [appState.columns]);
 
   // Card operations
-  const createCard = useCallback((boardId: string, columnId: string, data: { title: string; description?: string; labels?: string[]; dueDate?: string }) => {
+  const createCard = useCallback((boardId: string, columnId: string, data: { title: string; description?: string; labels?: string[]; dueDate?: string }): string => {
     const existingOrders = appState.cards
       .filter(c => c.columnId === columnId)
       .map(c => c.order);
@@ -211,19 +211,19 @@ export const useTaskly = () => {
   // Derived state
   const activeBoards = appState.boards.filter(board => !board.isArchived);
   const selectedBoard = uiState.selectedBoardId 
-    ? appState.boards.find(b => b.id === uiState.selectedBoardId) 
+    ? appState.boards.find(b => b.id === uiState.selectedBoardId) || null
     : null;
   const selectedCard = uiState.selectedCardId 
-    ? appState.cards.find(c => c.id === uiState.selectedCardId) 
+    ? appState.cards.find(c => c.id === uiState.selectedCardId) || null
     : null;
 
-  const getBoardColumns = useCallback((boardId: string) => {
+  const getBoardColumns = useCallback((boardId: string): Column[] => {
     return appState.columns
       .filter(column => column.boardId === boardId)
       .sort((a, b) => a.order - b.order);
   }, [appState.columns]);
 
-  const getColumnCards = useCallback((columnId: string) => {
+  const getColumnCards = useCallback((columnId: string): Card[] => {
     return appState.cards
       .filter(card => card.columnId === columnId && !card.isArchived)
       .sort((a, b) => a.order - b.order);

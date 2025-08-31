@@ -1,6 +1,6 @@
 'use client';
 
-import { DndContext, DragEndEvent, DragOverlay, DragStartEvent } from '@dnd-kit/core';
+import { DndContext, DragOverlay } from '@dnd-kit/core';
 import { useState } from 'react';
 import { useTaskly } from '@/lib/hooks';
 import BoardsPanel from '@/components/BoardsPanel';
@@ -8,11 +8,12 @@ import BoardPanel from '@/components/BoardPanel';
 import CardModal from '@/components/CardModal';
 import CardDragOverlay from '@/components/CardDragOverlay';
 import ColumnDragOverlay from '@/components/ColumnDragOverlay';
+import type { DragStartEvent, DragEndEvent, DragData } from '@/types';
 
 export default function TasklyApp() {
   const taskly = useTaskly();
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [dragData, setDragData] = useState<any>(null);
+  const [dragData, setDragData] = useState<DragData | null>(null);
 
   if (!taskly.isLoaded) {
     return (
@@ -24,7 +25,7 @@ export default function TasklyApp() {
 
   const handleDragStart = (event: DragStartEvent) => {
     setActiveId(event.active.id as string);
-    setDragData(event.active.data.current);
+    setDragData(event.active.data.current as DragData);
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -36,8 +37,8 @@ export default function TasklyApp() {
       return;
     }
 
-    const activeData = active.data.current;
-    const overData = over.data.current;
+    const activeData = active.data.current as DragData | undefined;
+    const overData = over.data.current as DragData | undefined;
 
     if (!activeData || !overData) {
       setActiveId(null);
@@ -48,11 +49,19 @@ export default function TasklyApp() {
     // Handle card drag
     if (activeData.type === 'card') {
       const card = activeData.card;
-      if (!card) return;
+      if (!card) {
+        setActiveId(null);
+        setDragData(null);
+        return;
+      }
 
       if (overData.type === 'column-cards') {
         const newColumnId = overData.columnId;
-        if (!newColumnId) return;
+        if (!newColumnId) {
+          setActiveId(null);
+          setDragData(null);
+          return;
+        }
 
         // Get cards in the target column
         const targetCards = taskly.getColumnCards(newColumnId);
@@ -64,7 +73,11 @@ export default function TasklyApp() {
       } else if (overData.type === 'card') {
         // Handle reordering within the same column or moving to a different column
         const overCard = taskly.appState.cards.find(c => c.id === over.id);
-        if (!overCard) return;
+        if (!overCard) {
+          setActiveId(null);
+          setDragData(null);
+          return;
+        }
 
         const targetColumnId = overCard.columnId;
         const targetCards = taskly.getColumnCards(targetColumnId);
@@ -82,7 +95,11 @@ export default function TasklyApp() {
           // Moving between cards
           const prevCard = targetCards[overCardIndex - 1];
           const nextCard = targetCards[overCardIndex + 1];
-          newOrder = taskly.calculateNewOrder(prevCard?.order, nextCard?.order);
+          if (!prevCard || !nextCard) {
+            newOrder = overCard.order;
+          } else {
+            newOrder = taskly.calculateNewOrder(prevCard.order, nextCard.order);
+          }
         }
 
         taskly.moveCard(card.id, targetColumnId, newOrder);
@@ -94,7 +111,6 @@ export default function TasklyApp() {
       const activeColumn = activeData.column;
       const overColumn = taskly.appState.columns.find(c => c.id === over.id);
       
-      // FIXED: Add explicit null check for overColumn before accessing properties
       if (!activeColumn || !overColumn) {
         setActiveId(null);
         setDragData(null);
@@ -122,13 +138,14 @@ export default function TasklyApp() {
       if (activeIndex !== overIndex) {
         const newColumnOrder = [...boardColumns];
         const [movedColumn] = newColumnOrder.splice(activeIndex, 1);
-        newColumnOrder.splice(overIndex, 0, movedColumn);
-        
-        // FIXED: Now we're certain overColumn exists due to the null check above
-        taskly.reorderColumns(
-          overColumn.boardId,
-          newColumnOrder.map(c => c.id)
-        );
+        if (movedColumn) {
+          newColumnOrder.splice(overIndex, 0, movedColumn);
+          
+          taskly.reorderColumns(
+            overColumn.boardId,
+            newColumnOrder.map(c => c.id)
+          );
+        }
       }
     }
 

@@ -1,3 +1,5 @@
+import type { DragStartEvent as DndDragStartEvent, DragEndEvent as DndDragEndEvent } from '@dnd-kit/core';
+
 // Base entity interface
 interface BaseEntity {
   id: string;
@@ -34,41 +36,27 @@ export interface AppState {
   cards: Card[];
 }
 
-// Drag and drop types
-export interface DragStartEvent {
-  active: {
-    id: string;
-    data: {
-      current: {
-        type: 'card' | 'column';
-        card?: Card;
-        column?: Column;
-      };
-    };
-  };
+// Re-export DndKit types to avoid conflicts
+export type DragStartEvent = DndDragStartEvent;
+export type DragEndEvent = DndDragEndEvent;
+
+// Custom drag data types for our application
+export interface CardDragData {
+  type: 'card';
+  card: Card;
 }
 
-export interface DragEndEvent {
-  active: {
-    id: string;
-    data: {
-      current: {
-        type: 'card' | 'column';
-        card?: Card;
-        column?: Column;
-      };
-    };
-  };
-  over: {
-    id: string;
-    data: {
-      current: {
-        type: 'card' | 'column' | 'column-cards';
-        columnId?: string;
-      };
-    };
-  } | null;
+export interface ColumnDragData {
+  type: 'column';
+  column: Column;
 }
+
+export interface ColumnCardsDragData {
+  type: 'column-cards';
+  columnId: string;
+}
+
+export type DragData = CardDragData | ColumnDragData | ColumnCardsDragData;
 
 // UI state types
 export type ViewMode = 'boards' | 'board' | 'card';

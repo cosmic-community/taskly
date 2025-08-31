@@ -5,7 +5,7 @@ import { Plus, MoreVertical, Edit2, Trash2 } from 'lucide-react';
 import { useSortable } from '@dnd-kit/sortable';
 import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { Column, Card } from '@/types';
+import { Column } from '@/types';
 import { useTaskly } from '@/lib/hooks';
 import CardComponent from '@/components/Card';
 
