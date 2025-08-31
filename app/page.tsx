@@ -94,7 +94,7 @@ export default function TasklyApp() {
       const activeColumn = activeData.column;
       const overColumn = taskly.appState.columns.find(c => c.id === over.id);
       
-      // FIXED: Add explicit null/undefined checks for both columns
+      // FIXED: Add explicit type guards for both columns
       if (!activeColumn || !overColumn) {
         setActiveId(null);
         setDragData(null);
