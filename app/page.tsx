@@ -94,8 +94,15 @@ export default function TasklyApp() {
       const activeColumn = activeData.column;
       const overColumn = taskly.appState.columns.find(c => c.id === over.id);
       
-      // Add proper undefined check for overColumn
-      if (!activeColumn || !overColumn || activeColumn.boardId !== overColumn.boardId) {
+      // Add proper undefined check for overColumn - this fixes the TS2345 error
+      if (!activeColumn || !overColumn) {
+        setActiveId(null);
+        setDragData(null);
+        return;
+      }
+
+      // Additional check to ensure columns are in the same board
+      if (activeColumn.boardId !== overColumn.boardId) {
         setActiveId(null);
         setDragData(null);
         return;
