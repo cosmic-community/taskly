@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Plus, MoreVertical, Edit2, Trash2 } from 'lucide-react';
+import { Plus, MoreVertical, Edit2, Trash2, Hash, Zap } from 'lucide-react';
 import { useSortable } from '@dnd-kit/sortable';
 import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
@@ -50,7 +50,7 @@ export default function ColumnComponent({ column, taskly }: ColumnProps) {
   const style = {
     transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
     transition,
-    opacity: isDragging ? 0.5 : 1,
+    opacity: isDragging ? 0.6 : 1,
   };
 
   const handleCreateCard = () => {
@@ -104,35 +104,42 @@ export default function ColumnComponent({ column, taskly }: ColumnProps) {
       style={style}
       className="flex-shrink-0 w-80"
     >
-      <div className="bg-white rounded-lg border shadow-sm">
+      <div className="glass-light border border-border/20 rounded-2xl shadow-card overflow-hidden">
         {/* Column Header */}
         <div
           {...attributes}
           {...listeners}
-          className="p-4 border-b cursor-grab active:cursor-grabbing"
+          className="p-4 cursor-grab active:cursor-grabbing bg-gradient-to-r from-secondary/50 to-secondary/30 border-b border-border/20"
         >
           <div className="flex items-center justify-between">
-            {isEditingTitle ? (
-              <input
-                type="text"
-                value={editedTitle}
-                onChange={(e) => setEditedTitle(e.target.value)}
-                onKeyDown={handleTitleKeyPress}
-                onBlur={handleTitleSubmit}
-                className="text-sm font-semibold bg-transparent border-none outline-none flex-1"
-                autoFocus
-                onClick={(e) => e.stopPropagation()}
-              />
-            ) : (
-              <h3 className="text-sm font-semibold text-foreground flex-1">
-                {column.title}
-              </h3>
-            )}
+            <div className="flex items-center gap-3 flex-1">
+              <div className="p-1.5 bg-gradient-primary rounded-lg shadow-glow">
+                <Hash className="w-3 h-3 text-white" />
+              </div>
+              
+              {isEditingTitle ? (
+                <input
+                  type="text"
+                  value={editedTitle}
+                  onChange={(e) => setEditedTitle(e.target.value)}
+                  onKeyDown={handleTitleKeyPress}
+                  onBlur={handleTitleSubmit}
+                  className="text-sm font-bold bg-transparent border-none outline-none flex-1 text-foreground"
+                  autoFocus
+                  onClick={(e) => e.stopPropagation()}
+                />
+              ) : (
+                <h3 className="text-sm font-bold text-foreground flex-1">
+                  {column.title}
+                </h3>
+              )}
+            </div>
             
             <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground bg-secondary px-2 py-1 rounded">
-                {cards.length}
-              </span>
+              <div className="flex items-center gap-1 px-2.5 py-1 bg-primary/20 text-primary rounded-lg border border-primary/20">
+                <Zap className="w-3 h-3" />
+                <span className="text-xs font-semibold">{cards.length}</span>
+              </div>
               
               <div className="relative">
                 <button
@@ -140,7 +147,7 @@ export default function ColumnComponent({ column, taskly }: ColumnProps) {
                     e.stopPropagation();
                     setShowColumnMenu(!showColumnMenu);
                   }}
-                  className="p-1 hover:bg-secondary rounded"
+                  className="p-2 hover:bg-secondary/50 rounded-lg transition-colors duration-200"
                 >
                   <MoreVertical className="w-4 h-4" />
                 </button>
@@ -151,28 +158,29 @@ export default function ColumnComponent({ column, taskly }: ColumnProps) {
                       className="fixed inset-0 z-10"
                       onClick={() => setShowColumnMenu(false)}
                     />
-                    <div className="absolute top-full right-0 mt-1 w-40 bg-white border rounded-lg shadow-lg z-20">
+                    <div className="absolute top-full right-0 mt-2 w-44 glass border border-border/30 rounded-xl shadow-card z-20 overflow-hidden">
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           setIsEditingTitle(true);
                           setShowColumnMenu(false);
                         }}
-                        className="w-full px-3 py-2 text-left text-sm hover:bg-secondary rounded-t-lg flex items-center gap-2"
+                        className="w-full px-4 py-3 text-left text-sm hover:bg-secondary/50 transition-colors duration-200 flex items-center gap-2"
                       >
-                        <Edit2 className="w-4 h-4" />
-                        Rename
+                        <Edit2 className="w-4 h-4 text-primary" />
+                        <span>Rename</span>
                       </button>
+                      <div className="h-px bg-border/20" />
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           handleDeleteColumn();
                           setShowColumnMenu(false);
                         }}
-                        className="w-full px-3 py-2 text-left text-sm text-destructive hover:bg-destructive/10 rounded-b-lg flex items-center gap-2"
+                        className="w-full px-4 py-3 text-left text-sm text-destructive hover:bg-destructive/10 transition-colors duration-200 flex items-center gap-2"
                       >
                         <Trash2 className="w-4 h-4" />
-                        Delete
+                        <span>Delete</span>
                       </button>
                     </div>
                   </>
@@ -185,21 +193,22 @@ export default function ColumnComponent({ column, taskly }: ColumnProps) {
         {/* Cards Area */}
         <div 
           ref={setDroppableNodeRef}
-          className="p-3 min-h-[200px] space-y-2"
+          className="p-4 min-h-[300px] space-y-3"
         >
           <SortableContext items={cardIds} strategy={verticalListSortingStrategy}>
-            {cards.map((card) => (
-              <CardComponent 
-                key={card.id} 
-                card={card} 
-                onClick={() => taskly.selectCard(card.id)}
-              />
+            {cards.map((card, index) => (
+              <div key={card.id} className="animate-fade-in" style={{ animationDelay: `${index * 0.05}s` }}>
+                <CardComponent 
+                  card={card} 
+                  onClick={() => taskly.selectCard(card.id)}
+                />
+              </div>
             ))}
           </SortableContext>
 
           {/* Add Card */}
           {isCreatingCard ? (
-            <div className="p-3 bg-secondary rounded-lg border-2 border-dashed border-primary">
+            <div className="p-4 bg-gradient-card border-2 border-dashed border-primary/50 rounded-xl animate-scale-in">
               <textarea
                 value={newCardTitle}
                 onChange={(e) => setNewCardTitle(e.target.value)}
@@ -210,14 +219,14 @@ export default function ColumnComponent({ column, taskly }: ColumnProps) {
                   }
                 }}
                 placeholder="Enter card title..."
-                className="w-full text-sm bg-transparent border-none outline-none placeholder-muted-foreground resize-none"
+                className="w-full text-sm bg-transparent border-none outline-none placeholder-muted-foreground resize-none text-foreground"
                 rows={2}
                 autoFocus
               />
-              <div className="mt-2 flex gap-2">
+              <div className="mt-3 flex gap-2">
                 <button
                   onClick={handleCreateCard}
-                  className="px-3 py-1 bg-primary text-primary-foreground text-xs rounded hover:opacity-90 transition-opacity"
+                  className="btn-primary text-xs"
                 >
                   Add Card
                 </button>
@@ -226,7 +235,7 @@ export default function ColumnComponent({ column, taskly }: ColumnProps) {
                     setIsCreatingCard(false);
                     setNewCardTitle('');
                   }}
-                  className="px-3 py-1 bg-white text-foreground text-xs rounded border hover:bg-secondary/50 transition-colors"
+                  className="btn-secondary text-xs"
                 >
                   Cancel
                 </button>
@@ -235,10 +244,12 @@ export default function ColumnComponent({ column, taskly }: ColumnProps) {
           ) : (
             <button
               onClick={() => setIsCreatingCard(true)}
-              className="w-full p-3 text-sm text-muted-foreground hover:text-foreground hover:bg-secondary border border-dashed border-muted hover:border-border rounded-lg transition-all flex items-center justify-center gap-2"
+              className="group w-full p-4 text-sm text-muted-foreground hover:text-foreground hover:bg-secondary/30 border-2 border-dashed border-muted hover:border-primary/50 rounded-xl transition-all duration-300 flex items-center justify-center gap-2"
             >
-              <Plus className="w-4 h-4" />
-              Add a card
+              <div className="p-1.5 bg-gradient-primary rounded-lg opacity-70 group-hover:opacity-100 transition-opacity duration-200">
+                <Plus className="w-3 h-3 text-white" />
+              </div>
+              <span className="font-medium">Add a card</span>
             </button>
           )}
         </div>

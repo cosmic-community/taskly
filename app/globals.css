@@ -4,17 +4,19 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-    --border: 214.3 31.8% 91.4%;
-    --primary: 221.2 83.2% 53.3%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    /* Modern dark theme color variables */
+    --background: 225 15% 6%;
+    --foreground: 225 20% 98%;
+    --border: 225 20% 20%;
+    --primary: 262 83% 65%;
+    --primary-foreground: 225 20% 98%;
+    --secondary: 225 15% 12%;
+    --secondary-foreground: 225 15% 85%;
+    --muted: 225 15% 15%;
+    --muted-foreground: 225 10% 65%;
+    --accent: 195 100% 50%;
+    --destructive: 0 84% 65%;
+    --destructive-foreground: 225 20% 98%;
   }
 }
 
@@ -22,22 +24,120 @@
   * {
     @apply border-border;
   }
+  
   body {
     @apply bg-background text-foreground;
+    background-image: 
+      radial-gradient(circle at 20% 80%, rgba(147, 51, 234, 0.1) 0%, transparent 50%),
+      radial-gradient(circle at 80% 20%, rgba(59, 130, 246, 0.08) 0%, transparent 50%),
+      radial-gradient(circle at 40% 40%, rgba(16, 185, 129, 0.05) 0%, transparent 50%);
     font-feature-settings: "rlig" 1, "calt" 1;
+    min-height: 100vh;
+  }
+  
+  /* Smooth scrolling */
+  html {
+    scroll-behavior: smooth;
+  }
+  
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  
+  ::-webkit-scrollbar-track {
+    @apply bg-secondary/50;
+    border-radius: 4px;
+  }
+  
+  ::-webkit-scrollbar-thumb {
+    @apply bg-primary/60 hover:bg-primary/80;
+    border-radius: 4px;
+  }
+  
+  /* Firefox scrollbar */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(147, 51, 234, 0.6) rgba(30, 30, 40, 0.5);
   }
 }
 
 @layer components {
+  /* Enhanced drag and drop styles */
   .drag-overlay {
-    @apply transform rotate-3 opacity-95 shadow-2xl;
+    @apply transform rotate-3 opacity-95 shadow-2xl scale-105;
+    filter: drop-shadow(0 20px 40px rgba(0, 0, 0, 0.3));
   }
   
   .droppable-over {
-    @apply bg-secondary/50;
+    @apply bg-primary/10 border-primary/50;
+    box-shadow: inset 0 0 0 2px rgba(147, 51, 234, 0.3);
   }
   
   .sortable-ghost {
-    @apply opacity-50;
+    @apply opacity-40 scale-95;
+  }
+  
+  /* Modern glass morphism effects */
+  .glass {
+    backdrop-filter: blur(16px) saturate(180%);
+    background-color: rgba(30, 30, 40, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  
+  .glass-light {
+    backdrop-filter: blur(12px) saturate(150%);
+    background-color: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+  
+  /* Modern button styles */
+  .btn-primary {
+    @apply bg-gradient-to-r from-primary to-accent text-white font-medium px-6 py-2.5 rounded-xl shadow-glow hover:shadow-glow-lg hover:scale-105 transition-all duration-200 active:scale-95;
+  }
+  
+  .btn-secondary {
+    @apply bg-secondary border border-border/50 text-secondary-foreground hover:bg-secondary-light hover:border-border transition-all duration-200 px-6 py-2.5 rounded-xl font-medium;
+  }
+  
+  .btn-ghost {
+    @apply text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-all duration-200 px-4 py-2 rounded-lg;
+  }
+  
+  /* Modern input styles */
+  .input-modern {
+    @apply bg-secondary/50 border border-border/30 rounded-xl px-4 py-2.5 text-foreground placeholder:text-muted-foreground focus:border-primary/50 focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all duration-200 backdrop-blur-sm;
+  }
+  
+  /* Card hover animations */
+  .card-hover {
+    @apply hover:scale-[1.02] hover:-translate-y-1 transition-all duration-300 ease-out;
+  }
+  
+  /* Floating animation for special elements */
+  .float-animation {
+    animation: float 3s ease-in-out infinite;
+  }
+  
+  /* Modern gradient text */
+  .gradient-text {
+    background: linear-gradient(135deg, hsl(262 83% 75%) 0%, hsl(195 100% 60%) 50%, hsl(142 76% 70%) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+}
+
+@layer utilities {
+  /* Animation delays for staggered effects */
+  .delay-100 { animation-delay: 0.1s; }
+  .delay-200 { animation-delay: 0.2s; }
+  .delay-300 { animation-delay: 0.3s; }
+  .delay-500 { animation-delay: 0.5s; }
+  
+  /* Modern spacing utilities */
+  .space-y-6 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 1.5rem;
   }
 }
