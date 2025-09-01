@@ -118,12 +118,12 @@ export default function ColumnComponent({ column, taskly, labelFilter = [] }: Co
       style={style}
       className="flex-shrink-0 w-80"
     >
-      <div className="glass-light border border-border/20 rounded-2xl shadow-card overflow-hidden">
+      <div className="glass-light border border-border/20 rounded-2xl shadow-card overflow-visible">
         {/* Column Header */}
         <div
           {...attributes}
           {...listeners}
-          className="p-4 cursor-grab active:cursor-grabbing bg-gradient-to-r from-secondary/50 to-secondary/30 border-b border-border/20"
+          className="p-4 cursor-grab active:cursor-grabbing bg-gradient-to-r from-secondary/50 to-secondary/30 border-b border-border/20 relative overflow-visible"
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3 flex-1">
@@ -164,7 +164,7 @@ export default function ColumnComponent({ column, taskly, labelFilter = [] }: Co
                 </span>
               </div>
               
-              <div className="relative z-[9999]">
+              <div className="relative">
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
@@ -178,7 +178,7 @@ export default function ColumnComponent({ column, taskly, labelFilter = [] }: Co
                 {showColumnMenu && (
                   <>
                     <div
-                      className="fixed inset-0 z-[9990]"
+                      className="fixed inset-0 z-[9998]"
                       onClick={() => setShowColumnMenu(false)}
                     />
                     <div className="absolute top-full right-0 mt-2 w-44 glass border border-border/30 rounded-xl shadow-card z-[9999] overflow-hidden">
