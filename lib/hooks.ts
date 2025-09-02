@@ -76,9 +76,8 @@ const signUpUser = async (credentials: SignUpCredentials): Promise<AuthResponse>
 
 const verifyUserToken = async (token: string): Promise<User> => {
   const response = await fetch('/api/auth/verify', {
-    method: 'POST',
+    method: 'GET',
     headers: {
-      'Content-Type': 'application/json',
       'Authorization': `Bearer ${token}`,
     },
   });
