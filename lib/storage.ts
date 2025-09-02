@@ -1,165 +1,114 @@
 import { nanoid } from 'nanoid';
-import { AppState, Board, Column, Card } from '@/types';
+import { AppState, Board, Column, Card, User } from '@/types';
 
-const STORAGE_KEY = 'taskly-data';
+export class LocalStorageService {
+  private readonly STORAGE_KEY = 'taskly-app-state';
 
-// Default seed data
-const createSeedData = (): AppState => {
-  const boardId = nanoid();
-  const todoColumnId = nanoid();
-  const inProgressColumnId = nanoid();
-  const doneColumnId = nanoid();
+  async loadData(): Promise<AppState> {
+    try {
+      const data = localStorage.getItem(this.STORAGE_KEY);
+      if (!data) {
+        return this.getInitialState();
+      }
+      return JSON.parse(data);
+    } catch {
+      return this.getInitialState();
+    }
+  }
 
-  const boards: Board[] = [
-    {
-      id: boardId,
-      title: 'Personal Tasks',
-      order: 100,
+  private getInitialState(): AppState {
+    const sampleBoard: Board = {
+      id: nanoid(),
+      title: 'Sample Project',
+      order: 0,
       isArchived: false,
-    },
-  ];
+      userId: 'sample-user-id', // Add the required userId property
+    };
 
-  const columns: Column[] = [
-    {
-      id: todoColumnId,
-      boardId,
+    const todoColumn: Column = {
+      id: nanoid(),
+      boardId: sampleBoard.id,
       title: 'To Do',
-      order: 100,
-    },
-    {
-      id: inProgressColumnId,
-      boardId,
+      order: 0,
+    };
+
+    const inProgressColumn: Column = {
+      id: nanoid(),
+      boardId: sampleBoard.id,
       title: 'In Progress',
-      order: 200,
-    },
-    {
-      id: doneColumnId,
-      boardId,
+      order: 1,
+    };
+
+    const doneColumn: Column = {
+      id: nanoid(),
+      boardId: sampleBoard.id,
       title: 'Done',
-      order: 300,
-    },
-  ];
+      order: 2,
+    };
 
-  const cards: Card[] = [
-    {
-      id: nanoid(),
-      boardId,
-      columnId: todoColumnId,
-      title: 'Buy groceries',
-      description: 'Get milk, bread, eggs, and vegetables',
-      order: 100,
-      isArchived: false,
-    },
-    {
-      id: nanoid(),
-      boardId,
-      columnId: todoColumnId,
-      title: 'Book dentist appointment',
-      description: 'Schedule routine cleaning for next month',
-      order: 200,
-      isArchived: false,
-    },
-    {
-      id: nanoid(),
-      boardId,
-      columnId: todoColumnId,
-      title: 'Call mom',
-      order: 300,
-      isArchived: false,
-    },
-    {
-      id: nanoid(),
-      boardId,
-      columnId: inProgressColumnId,
-      title: 'Write blog post',
-      description: 'Article about productivity tips and techniques',
-      labels: ['writing', 'blog'],
-      order: 100,
-      isArchived: false,
-    },
-    {
-      id: nanoid(),
-      boardId,
-      columnId: doneColumnId,
-      title: 'Laundry',
-      order: 100,
-      isArchived: false,
-    },
-  ];
+    const sampleCards: Card[] = [
+      {
+        id: nanoid(),
+        boardId: sampleBoard.id,
+        columnId: todoColumn.id,
+        title: 'Design user interface',
+        description: 'Create wireframes and mockups for the main dashboard',
+        labels: ['design', 'ui'],
+        order: 0,
+        isArchived: false,
+      },
+      {
+        id: nanoid(),
+        boardId: sampleBoard.id,
+        columnId: todoColumn.id,
+        title: 'Set up authentication',
+        description: 'Implement user login and registration system',
+        labels: ['backend', 'auth'],
+        order: 1,
+        isArchived: false,
+      },
+      {
+        id: nanoid(),
+        boardId: sampleBoard.id,
+        columnId: inProgressColumn.id,
+        title: 'Build API endpoints',
+        description: 'Create REST API for board operations',
+        labels: ['backend', 'api'],
+        order: 0,
+        isArchived: false,
+      },
+      {
+        id: nanoid(),
+        boardId: sampleBoard.id,
+        columnId: doneColumn.id,
+        title: 'Project setup',
+        description: 'Initialize project structure and dependencies',
+        labels: ['setup'],
+        order: 0,
+        isArchived: false,
+      },
+    ];
 
-  return { boards, columns, cards };
-};
+    return {
+      boards: [sampleBoard],
+      columns: [todoColumn, inProgressColumn, doneColumn],
+      cards: sampleCards,
+      user: null, // Add the required user property
+    };
+  }
 
-// Storage service
-export const storageService = {
-  loadData(): AppState {
-    if (typeof window === 'undefined') {
-      return createSeedData();
-    }
-
+  async saveData(data: AppState): Promise<void> {
     try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (!stored) {
-        const seedData = createSeedData();
-        this.saveData(seedData);
-        return seedData;
-      }
-
-      const parsed = JSON.parse(stored) as AppState;
-      
-      // Validate the data structure
-      if (!parsed.boards || !parsed.columns || !parsed.cards) {
-        const seedData = createSeedData();
-        this.saveData(seedData);
-        return seedData;
-      }
-
-      return parsed;
+      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(data));
     } catch (error) {
-      console.error('Error loading data from localStorage:', error);
-      const seedData = createSeedData();
-      this.saveData(seedData);
-      return seedData;
+      console.error('Failed to save data to localStorage:', error);
+      throw new Error('Failed to save data');
     }
-  },
-
-  saveData(data: AppState): void {
-    if (typeof window === 'undefined') return;
-
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-    } catch (error) {
-      console.error('Error saving data to localStorage:', error);
-    }
-  },
+  }
 
   clearData(): void {
-    if (typeof window === 'undefined') return;
-    
-    try {
-      localStorage.removeItem(STORAGE_KEY);
-    } catch (error) {
-      console.error('Error clearing data from localStorage:', error);
-    }
-  },
-};
+    localStorage.removeItem(this.STORAGE_KEY);
+  }
+}
 
-// Utility functions for order management
-export const calculateNewOrder = (prevOrder?: number, nextOrder?: number): number => {
-  if (prevOrder === undefined && nextOrder === undefined) {
-    return 100;
-  }
-  if (prevOrder === undefined) {
-    return nextOrder! - 100;
-  }
-  if (nextOrder === undefined) {
-    return prevOrder + 100;
-  }
-  return Math.floor((prevOrder + nextOrder) / 2);
-};
-
-export const getNextOrder = (existingOrders: number[]): number => {
-  if (existingOrders.length === 0) return 100;
-  const maxOrder = Math.max(...existingOrders);
-  return maxOrder + 100;
-};
+export const storageService = new LocalStorageService();

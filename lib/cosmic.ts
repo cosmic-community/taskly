@@ -13,6 +13,14 @@ const hasStatus = (error: any): error is { status: number } => {
   return error && typeof error.status === 'number';
 };
 
+// Define interface for Cosmic object response
+interface CosmicObject {
+  id: string;
+  title: string;
+  slug?: string;
+  metadata: Record<string, any>;
+}
+
 // User operations
 export const getUserByEmail = async (email: string): Promise<User | null> => {
   try {
@@ -52,7 +60,7 @@ export const getUserBoards = async (userId: string): Promise<Board[]> => {
       .props(['id', 'title', 'metadata'])
       .depth(1);
     
-    return response.objects.map(obj => ({
+    return response.objects.map((obj: CosmicObject) => ({
       id: obj.id,
       title: obj.title,
       order: obj.metadata.order,
@@ -111,7 +119,7 @@ export const getBoardColumns = async (boardId: string): Promise<Column[]> => {
       .props(['id', 'title', 'metadata'])
       .depth(1);
     
-    return response.objects.map(obj => ({
+    return response.objects.map((obj: CosmicObject) => ({
       id: obj.id,
       title: obj.title,
       boardId: obj.metadata.board_id,
@@ -166,7 +174,7 @@ export const getColumnCards = async (columnId: string): Promise<Card[]> => {
       .props(['id', 'title', 'metadata'])
       .depth(1);
     
-    return response.objects.map(obj => ({
+    return response.objects.map((obj: CosmicObject) => ({
       id: obj.id,
       title: obj.title,
       boardId: obj.metadata.board_id,
@@ -192,7 +200,7 @@ export const getBoardCards = async (boardId: string): Promise<Card[]> => {
       .props(['id', 'title', 'metadata'])
       .depth(1);
     
-    return response.objects.map(obj => ({
+    return response.objects.map((obj: CosmicObject) => ({
       id: obj.id,
       title: obj.title,
       boardId: obj.metadata.board_id,
