@@ -2,561 +2,491 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { AppState, AuthResponse, LoginCredentials, SignUpCredentials, UIState } from '@/types';
+import { Board, Column, Card, User, ViewMode, LoginCredentials, SignUpCredentials } from '@/types';
+import { 
+  getUserBoards, 
+  createBoard as createBoardApi, 
+  updateBoard as updateBoardApi, 
+  deleteBoard as deleteBoardApi,
+  getBoardColumns,
+  createColumn as createColumnApi,
+  updateColumn as updateColumnApi,
+  deleteColumn as deleteColumnApi,
+  getColumnCards,
+  getBoardCards,
+  createCard as createCardApi,
+  updateCard as updateCardApi,
+  deleteCard as deleteCardApi
+} from '@/lib/cosmic';
 
-interface TasklyStore extends AppState {
-  // UI State
-  uiState: UIState;
-  setAuthMode: (mode: 'login' | 'signup') => void;
-  setCurrentView: (view: UIState['currentView']) => void;
-  setSelectedBoardId: (id: string | null) => void;
-  setSelectedCardId: (id: string | null) => void;
+interface TasklyStore {
+  // Data state
+  user: User | null;
+  boards: Board[];
+  columns: Column[];
+  cards: Card[];
   
-  // Loading and error states
+  // UI state
+  currentView: ViewMode;
+  selectedBoardId: string | null;
+  selectedCardId: string | null;
+  authMode: 'login' | 'signup';
+  
+  // Loading and error state
   isLoading: boolean;
   error: string | null;
   
-  // Auth actions
+  // Auth methods
+  checkAuth: () => Promise<void>;
   login: (credentials: LoginCredentials) => Promise<void>;
   signUp: (credentials: SignUpCredentials) => Promise<void>;
   logout: () => void;
-  verifyAuth: () => Promise<void>;
+  setAuthMode: (mode: 'login' | 'signup') => void;
   clearError: () => void;
   
-  // Data actions
-  loadData: () => Promise<void>;
-  saveData: () => Promise<void>;
+  // Navigation methods
+  setCurrentView: (view: ViewMode) => void;
+  setSelectedBoardId: (id: string | null) => void;
+  setSelectedCardId: (id: string | null) => void;
   
-  // Board actions
+  // Data methods
+  loadUserData: () => Promise<void>;
+  
+  // Board methods
+  getBoardById: (id: string) => Board | undefined;
   createBoard: (title: string) => Promise<void>;
-  updateBoard: (id: string, updates: { title?: string; isArchived?: boolean }) => Promise<void>;
+  updateBoard: (id: string, updates: Partial<Board>) => Promise<void>;
   deleteBoard: (id: string) => Promise<void>;
   
-  // Column actions
-  createColumn: (boardId: string, title: string) => Promise<void>;
-  updateColumn: (id: string, updates: { title?: string }) => Promise<void>;
+  // Column methods
+  getColumnsByBoardId: (boardId: string) => Column[];
+  addColumn: (boardId: string, title: string) => Promise<void>;
+  updateColumn: (id: string, updates: Partial<Column>) => Promise<void>;
   deleteColumn: (id: string) => Promise<void>;
-  reorderColumns: (boardId: string, columnIds: string[]) => Promise<void>;
   
-  // Card actions
-  createCard: (columnId: string, title: string, description?: string) => Promise<void>;
-  updateCard: (id: string, updates: any) => Promise<void>;
+  // Card methods
+  getCardsByColumnId: (columnId: string) => Card[];
+  getCardById: (id: string) => Card | undefined;
+  addCard: (columnId: string, title: string, description?: string) => Promise<void>;
+  updateCard: (id: string, updates: Partial<Card>) => Promise<void>;
   deleteCard: (id: string) => Promise<void>;
-  moveCard: (cardId: string, newColumnId: string, newIndex: number) => Promise<void>;
+  moveCard: (cardId: string, columnId: string) => Promise<void>;
 }
 
-export const useTaskly = create<TasklyStore>()(
+const useTasklyStore = create<TasklyStore>()(
   persist(
     (set, get) => ({
       // Initial state
+      user: null,
       boards: [],
       columns: [],
       cards: [],
-      user: null,
-      
-      // UI state
-      uiState: {
-        currentView: 'auth',
-        selectedBoardId: null,
-        selectedCardId: null,
-        authMode: 'login',
-      },
-      
-      // Loading and error states
+      currentView: 'auth',
+      selectedBoardId: null,
+      selectedCardId: null,
+      authMode: 'login',
       isLoading: false,
       error: null,
-      
-      // UI actions
-      setAuthMode: (mode) =>
-        set((state) => ({
-          uiState: { ...state.uiState, authMode: mode },
-        })),
-        
-      setCurrentView: (view) =>
-        set((state) => ({
-          uiState: { ...state.uiState, currentView: view },
-        })),
-        
-      setSelectedBoardId: (id) =>
-        set((state) => ({
-          uiState: { ...state.uiState, selectedBoardId: id },
-        })),
-        
-      setSelectedCardId: (id) =>
-        set((state) => ({
-          uiState: { ...state.uiState, selectedCardId: id },
-        })),
-      
-      // Auth actions
-      login: async (credentials) => {
-        set({ isLoading: true, error: null });
-        
+
+      // Auth methods
+      checkAuth: async () => {
+        const token = localStorage.getItem('taskly-token');
+        if (!token) {
+          set({ currentView: 'auth', user: null });
+          return;
+        }
+
         try {
-          const response = await fetch('/api/auth/login', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(credentials),
+          set({ isLoading: true, error: null });
+          const response = await fetch('/api/auth/verify', {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+            },
           });
-          
-          const data = await response.json();
-          
-          if (!response.ok) {
-            throw new Error(data.error || 'Login failed');
+
+          if (response.ok) {
+            const { user } = await response.json();
+            set({ user, currentView: 'boards' });
+            await get().loadUserData();
+          } else {
+            localStorage.removeItem('taskly-token');
+            set({ currentView: 'auth', user: null });
           }
-          
-          // Store token and user
-          localStorage.setItem('auth_token', data.token);
-          set({
-            user: data.user,
-            uiState: { ...get().uiState, currentView: 'boards' },
-            isLoading: false,
-          });
-          
-          // Load user data
-          await get().loadData();
         } catch (error) {
-          set({
-            error: error instanceof Error ? error.message : 'Login failed',
-            isLoading: false,
-          });
-          throw error;
+          console.error('Auth check failed:', error);
+          localStorage.removeItem('taskly-token');
+          set({ currentView: 'auth', user: null, error: 'Authentication failed' });
+        } finally {
+          set({ isLoading: false });
         }
       },
-      
-      signUp: async (credentials) => {
-        set({ isLoading: true, error: null });
-        
+
+      login: async (credentials) => {
         try {
-          if (credentials.password !== credentials.confirmPassword) {
-            throw new Error('Passwords do not match');
+          set({ isLoading: true, error: null });
+          const response = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(credentials),
+          });
+
+          const data = await response.json();
+
+          if (response.ok) {
+            localStorage.setItem('taskly-token', data.token);
+            set({ user: data.user, currentView: 'boards' });
+            await get().loadUserData();
+          } else {
+            set({ error: data.error || 'Login failed' });
           }
-          
+        } catch (error) {
+          console.error('Login failed:', error);
+          set({ error: 'Network error. Please try again.' });
+        } finally {
+          set({ isLoading: false });
+        }
+      },
+
+      signUp: async (credentials) => {
+        if (credentials.password !== credentials.confirmPassword) {
+          set({ error: 'Passwords do not match' });
+          return;
+        }
+
+        try {
+          set({ isLoading: true, error: null });
           const response = await fetch('/api/auth/signup', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json',
+            },
             body: JSON.stringify({
               email: credentials.email,
               password: credentials.password,
             }),
           });
-          
+
           const data = await response.json();
-          
-          if (!response.ok) {
-            throw new Error(data.error || 'Sign up failed');
+
+          if (response.ok) {
+            localStorage.setItem('taskly-token', data.token);
+            set({ user: data.user, currentView: 'boards' });
+            await get().loadUserData();
+          } else {
+            set({ error: data.error || 'Sign up failed' });
           }
-          
-          // Store token and user
-          localStorage.setItem('auth_token', data.token);
-          set({
-            user: data.user,
-            uiState: { ...get().uiState, currentView: 'boards' },
-            isLoading: false,
-          });
-          
-          // Load user data (will be empty for new user)
-          await get().loadData();
         } catch (error) {
-          set({
-            error: error instanceof Error ? error.message : 'Sign up failed',
-            isLoading: false,
-          });
-          throw error;
+          console.error('Sign up failed:', error);
+          set({ error: 'Network error. Please try again.' });
+        } finally {
+          set({ isLoading: false });
         }
       },
-      
+
       logout: () => {
-        localStorage.removeItem('auth_token');
+        localStorage.removeItem('taskly-token');
         set({
           user: null,
           boards: [],
           columns: [],
           cards: [],
-          uiState: {
-            currentView: 'auth',
-            selectedBoardId: null,
-            selectedCardId: null,
-            authMode: 'login',
-          },
+          currentView: 'auth',
+          selectedBoardId: null,
+          selectedCardId: null,
           error: null,
         });
       },
-      
-      verifyAuth: async () => {
-        const token = localStorage.getItem('auth_token');
-        if (!token) {
-          set({
-            uiState: { ...get().uiState, currentView: 'auth' },
-          });
-          return;
-        }
-        
-        try {
-          const response = await fetch('/api/auth/verify', {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          
-          if (!response.ok) {
-            throw new Error('Token invalid');
-          }
-          
-          const data = await response.json();
-          set({
-            user: data.user,
-            uiState: { ...get().uiState, currentView: 'boards' },
-          });
-          
-          await get().loadData();
-        } catch (error) {
-          localStorage.removeItem('auth_token');
-          set({
-            user: null,
-            uiState: { ...get().uiState, currentView: 'auth' },
-          });
-        }
-      },
-      
+
+      setAuthMode: (mode) => set({ authMode: mode }),
       clearError: () => set({ error: null }),
-      
-      // Data actions
-      loadData: async () => {
+
+      // Navigation methods
+      setCurrentView: (view) => set({ currentView: view }),
+      setSelectedBoardId: (id) => set({ selectedBoardId: id }),
+      setSelectedCardId: (id) => set({ selectedCardId: id }),
+
+      // Data methods
+      loadUserData: async () => {
         const { user } = get();
         if (!user) return;
-        
+
         try {
-          const token = localStorage.getItem('auth_token');
-          if (!token) return;
-          
-          // Load boards
-          const boardsResponse = await fetch('/api/boards', {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          
-          if (boardsResponse.ok) {
-            const boardsData = await boardsResponse.json();
-            set({ boards: boardsData.boards });
-            
-            // Load columns and cards for all boards
-            const allColumns = [];
-            const allCards = [];
-            
-            for (const board of boardsData.boards) {
-              const columnsResponse = await fetch(`/api/columns?boardId=${board.id}`, {
-                headers: { Authorization: `Bearer ${token}` },
-              });
-              
-              if (columnsResponse.ok) {
-                const columnsData = await columnsResponse.json();
-                allColumns.push(...columnsData.columns);
-                
-                for (const column of columnsData.columns) {
-                  const cardsResponse = await fetch(`/api/cards?columnId=${column.id}`, {
-                    headers: { Authorization: `Bearer ${token}` },
-                  });
-                  
-                  if (cardsResponse.ok) {
-                    const cardsData = await cardsResponse.json();
-                    allCards.push(...cardsData.cards);
-                  }
-                }
-              }
-            }
-            
-            set({ columns: allColumns, cards: allCards });
-          }
+          set({ isLoading: true });
+          const [boards, columns, cards] = await Promise.all([
+            getUserBoards(user.id),
+            // For now, load all columns and cards - in a real app you might optimize this
+            getBoardColumns(''), // We'll filter by board later
+            getBoardCards(''), // We'll filter by board later
+          ]);
+
+          set({ boards, columns: [], cards: [] }); // Start with empty columns/cards, load as needed
         } catch (error) {
-          console.error('Failed to load data:', error);
+          console.error('Failed to load user data:', error);
+          set({ error: 'Failed to load data' });
+        } finally {
+          set({ isLoading: false });
         }
       },
-      
-      saveData: async () => {
-        // Data is automatically saved via API calls
+
+      // Board methods
+      getBoardById: (id) => {
+        const { boards } = get();
+        return boards.find(board => board.id === id);
       },
-      
-      // Board actions
+
       createBoard: async (title) => {
-        const token = localStorage.getItem('auth_token');
-        if (!token) return;
-        
+        const { user, boards } = get();
+        if (!user) return;
+
         try {
-          const response = await fetch('/api/boards', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify({ title }),
-          });
-          
-          if (response.ok) {
-            const data = await response.json();
-            set((state) => ({
-              boards: [...state.boards, data.board],
-            }));
-          }
+          set({ isLoading: true });
+          const order = Math.max(...boards.map(b => b.order), 0) + 1;
+          const newBoard = await createBoardApi(title, user.id, order);
+          set({ boards: [...boards, newBoard] });
         } catch (error) {
           console.error('Failed to create board:', error);
+          set({ error: 'Failed to create board' });
+        } finally {
+          set({ isLoading: false });
         }
       },
-      
+
       updateBoard: async (id, updates) => {
-        const token = localStorage.getItem('auth_token');
-        if (!token) return;
-        
         try {
-          const response = await fetch(`/api/boards/${id}`, {
-            method: 'PATCH',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify(updates),
+          set({ isLoading: true });
+          await updateBoardApi(id, updates);
+          const { boards } = get();
+          set({
+            boards: boards.map(board =>
+              board.id === id ? { ...board, ...updates } : board
+            ),
           });
-          
-          if (response.ok) {
-            set((state) => ({
-              boards: state.boards.map((board) =>
-                board.id === id ? { ...board, ...updates } : board
-              ),
-            }));
-          }
         } catch (error) {
           console.error('Failed to update board:', error);
+          set({ error: 'Failed to update board' });
+        } finally {
+          set({ isLoading: false });
         }
       },
-      
+
       deleteBoard: async (id) => {
-        const token = localStorage.getItem('auth_token');
-        if (!token) return;
-        
         try {
-          const response = await fetch(`/api/boards/${id}`, {
-            method: 'DELETE',
-            headers: { Authorization: `Bearer ${token}` },
+          set({ isLoading: true });
+          await deleteBoardApi(id);
+          const { boards, columns, cards } = get();
+          set({
+            boards: boards.filter(board => board.id !== id),
+            columns: columns.filter(column => column.boardId !== id),
+            cards: cards.filter(card => card.boardId !== id),
           });
           
-          if (response.ok) {
-            set((state) => ({
-              boards: state.boards.filter((board) => board.id !== id),
-              columns: state.columns.filter((column) => column.boardId !== id),
-              cards: state.cards.filter((card) => card.boardId !== id),
-            }));
+          // Reset selection if deleted board was selected
+          const { selectedBoardId } = get();
+          if (selectedBoardId === id) {
+            set({ selectedBoardId: null, currentView: 'boards' });
           }
         } catch (error) {
           console.error('Failed to delete board:', error);
+          set({ error: 'Failed to delete board' });
+        } finally {
+          set({ isLoading: false });
         }
       },
-      
-      // Column actions
-      createColumn: async (boardId, title) => {
-        const token = localStorage.getItem('auth_token');
-        if (!token) return;
-        
+
+      // Column methods
+      getColumnsByBoardId: (boardId) => {
+        const { columns } = get();
+        return columns.filter(column => column.boardId === boardId)
+          .sort((a, b) => a.order - b.order);
+      },
+
+      addColumn: async (boardId, title) => {
         try {
-          const response = await fetch('/api/columns', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify({ boardId, title }),
-          });
+          set({ isLoading: true });
+          const { columns } = get();
+          const boardColumns = columns.filter(col => col.boardId === boardId);
+          const order = Math.max(...boardColumns.map(c => c.order), 0) + 1;
           
-          if (response.ok) {
-            const data = await response.json();
-            set((state) => ({
-              columns: [...state.columns, data.column],
-            }));
-          }
+          const newColumn = await createColumnApi(boardId, title, order);
+          set({ columns: [...columns, newColumn] });
         } catch (error) {
           console.error('Failed to create column:', error);
+          set({ error: 'Failed to create column' });
+        } finally {
+          set({ isLoading: false });
         }
       },
-      
+
       updateColumn: async (id, updates) => {
-        const token = localStorage.getItem('auth_token');
-        if (!token) return;
-        
         try {
-          const response = await fetch(`/api/columns/${id}`, {
-            method: 'PATCH',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify(updates),
+          set({ isLoading: true });
+          await updateColumnApi(id, updates);
+          const { columns } = get();
+          set({
+            columns: columns.map(column =>
+              column.id === id ? { ...column, ...updates } : column
+            ),
           });
-          
-          if (response.ok) {
-            set((state) => ({
-              columns: state.columns.map((column) =>
-                column.id === id ? { ...column, ...updates } : column
-              ),
-            }));
-          }
         } catch (error) {
           console.error('Failed to update column:', error);
+          set({ error: 'Failed to update column' });
+        } finally {
+          set({ isLoading: false });
         }
       },
-      
+
       deleteColumn: async (id) => {
-        const token = localStorage.getItem('auth_token');
-        if (!token) return;
-        
         try {
-          const response = await fetch(`/api/columns/${id}`, {
-            method: 'DELETE',
-            headers: { Authorization: `Bearer ${token}` },
+          set({ isLoading: true });
+          await deleteColumnApi(id);
+          const { columns, cards } = get();
+          set({
+            columns: columns.filter(column => column.id !== id),
+            cards: cards.filter(card => card.columnId !== id),
           });
-          
-          if (response.ok) {
-            set((state) => ({
-              columns: state.columns.filter((column) => column.id !== id),
-              cards: state.cards.filter((card) => card.columnId !== id),
-            }));
-          }
         } catch (error) {
           console.error('Failed to delete column:', error);
+          set({ error: 'Failed to delete column' });
+        } finally {
+          set({ isLoading: false });
         }
       },
-      
-      reorderColumns: async (boardId, columnIds) => {
-        const token = localStorage.getItem('auth_token');
-        if (!token) return;
-        
-        try {
-          const response = await fetch('/api/columns/reorder', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify({ boardId, columnIds }),
-          });
-          
-          if (response.ok) {
-            // Optimistically update the order
-            set((state) => ({
-              columns: state.columns.map((column) => {
-                if (column.boardId === boardId) {
-                  const newOrder = columnIds.indexOf(column.id);
-                  return newOrder >= 0 ? { ...column, order: newOrder } : column;
-                }
-                return column;
-              }),
-            }));
-          }
-        } catch (error) {
-          console.error('Failed to reorder columns:', error);
-        }
+
+      // Card methods
+      getCardsByColumnId: (columnId) => {
+        const { cards } = get();
+        return cards.filter(card => card.columnId === columnId)
+          .sort((a, b) => a.order - b.order);
       },
-      
-      // Card actions
-      createCard: async (columnId, title, description) => {
-        const token = localStorage.getItem('auth_token');
-        if (!token) return;
-        
+
+      getCardById: (id) => {
+        const { cards } = get();
+        return cards.find(card => card.id === id);
+      },
+
+      addCard: async (columnId, title, description) => {
+        const { columns, cards } = get();
+        const column = columns.find(c => c.id === columnId);
+        if (!column) return;
+
         try {
-          const response = await fetch('/api/cards', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify({ columnId, title, description }),
-          });
+          set({ isLoading: true });
+          const columnCards = cards.filter(card => card.columnId === columnId);
+          const order = Math.max(...columnCards.map(c => c.order), 0) + 1;
           
-          if (response.ok) {
-            const data = await response.json();
-            set((state) => ({
-              cards: [...state.cards, data.card],
-            }));
-          }
+          const newCard = await createCardApi(
+            column.boardId,
+            columnId,
+            title,
+            description,
+            undefined,
+            undefined,
+            order
+          );
+          set({ cards: [...cards, newCard] });
         } catch (error) {
           console.error('Failed to create card:', error);
+          set({ error: 'Failed to create card' });
+        } finally {
+          set({ isLoading: false });
         }
       },
-      
+
       updateCard: async (id, updates) => {
-        const token = localStorage.getItem('auth_token');
-        if (!token) return;
-        
         try {
-          const response = await fetch(`/api/cards/${id}`, {
-            method: 'PATCH',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify(updates),
+          set({ isLoading: true });
+          await updateCardApi(id, updates);
+          const { cards } = get();
+          set({
+            cards: cards.map(card =>
+              card.id === id ? { ...card, ...updates } : card
+            ),
           });
-          
-          if (response.ok) {
-            set((state) => ({
-              cards: state.cards.map((card) =>
-                card.id === id ? { ...card, ...updates } : card
-              ),
-            }));
-          }
         } catch (error) {
           console.error('Failed to update card:', error);
+          set({ error: 'Failed to update card' });
+        } finally {
+          set({ isLoading: false });
         }
       },
-      
+
       deleteCard: async (id) => {
-        const token = localStorage.getItem('auth_token');
-        if (!token) return;
-        
         try {
-          const response = await fetch(`/api/cards/${id}`, {
-            method: 'DELETE',
-            headers: { Authorization: `Bearer ${token}` },
-          });
+          set({ isLoading: true });
+          await deleteCardApi(id);
+          const { cards } = get();
+          set({ cards: cards.filter(card => card.id !== id) });
           
-          if (response.ok) {
-            set((state) => ({
-              cards: state.cards.filter((card) => card.id !== id),
-            }));
+          // Reset selection if deleted card was selected
+          const { selectedCardId } = get();
+          if (selectedCardId === id) {
+            set({ selectedCardId: null });
           }
         } catch (error) {
           console.error('Failed to delete card:', error);
+          set({ error: 'Failed to delete card' });
+        } finally {
+          set({ isLoading: false });
         }
       },
-      
-      moveCard: async (cardId, newColumnId, newIndex) => {
-        const token = localStorage.getItem('auth_token');
-        if (!token) return;
-        
+
+      moveCard: async (cardId, columnId) => {
         try {
-          const response = await fetch(`/api/cards/${cardId}/move`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify({ columnId: newColumnId, order: newIndex }),
+          set({ isLoading: true });
+          await updateCardApi(cardId, { columnId });
+          const { cards } = get();
+          set({
+            cards: cards.map(card =>
+              card.id === cardId ? { ...card, columnId } : card
+            ),
           });
-          
-          if (response.ok) {
-            set((state) => ({
-              cards: state.cards.map((card) =>
-                card.id === cardId
-                  ? { ...card, columnId: newColumnId, order: newIndex }
-                  : card
-              ),
-            }));
-          }
         } catch (error) {
           console.error('Failed to move card:', error);
+          set({ error: 'Failed to move card' });
+        } finally {
+          set({ isLoading: false });
         }
       },
     }),
     {
-      name: 'taskly-storage',
+      name: 'taskly-store',
       partialize: (state) => ({
         user: state.user,
-        uiState: state.uiState,
+        boards: state.boards,
+        columns: state.columns,
+        cards: state.cards,
       }),
     }
   )
 );
+
+// Custom hook for easier access
+export const useTaskly = () => {
+  const store = useTasklyStore();
+  
+  // Load columns and cards for selected board when board changes
+  const loadBoardData = async (boardId: string) => {
+    if (!boardId) return;
+    
+    try {
+      const [columns, cards] = await Promise.all([
+        getBoardColumns(boardId),
+        getBoardCards(boardId),
+      ]);
+      
+      useTasklyStore.setState({ columns, cards });
+    } catch (error) {
+      console.error('Failed to load board data:', error);
+      useTasklyStore.setState({ error: 'Failed to load board data' });
+    }
+  };
+
+  return {
+    ...store,
+    loadBoardData,
+  };
+};
+
+export default useTasklyStore;
