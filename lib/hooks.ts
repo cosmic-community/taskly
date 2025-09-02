@@ -475,8 +475,11 @@ export function TasklyProvider({ children }: { children: ReactNode }) {
         dueDate: form.dueDate,
       });
       
-      const updatedCard = { ...getCardById(form.id)!, ...form };
-      dispatch({ type: 'UPDATE_CARD', payload: updatedCard });
+      const existingCard = getCardById(form.id);
+      if (existingCard) {
+        const updatedCard = { ...existingCard, ...form };
+        dispatch({ type: 'UPDATE_CARD', payload: updatedCard });
+      }
     } catch (error) {
       dispatch({ type: 'SET_ERROR', payload: 'Failed to update card' });
     } finally {

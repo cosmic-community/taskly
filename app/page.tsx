@@ -2,18 +2,19 @@
 
 import { useEffect } from 'react';
 import { useTaskly } from '@/lib/hooks';
+import { TasklyProvider } from '@/lib/hooks';
 import AuthPanel from '@/components/AuthPanel';
 import BoardsPanel from '@/components/BoardsPanel';
 import BoardPanel from '@/components/BoardPanel';
 import CardModal from '@/components/CardModal';
 
-export default function TasklyApp() {
+function TasklyApp() {
   const taskly = useTaskly();
 
   useEffect(() => {
     // Check for existing authentication
     taskly.checkAuth();
-  }, []);
+  }, [taskly]);
 
   // Show auth panel if no user is logged in
   if (!taskly.user || taskly.currentView === 'auth') {
@@ -98,5 +99,13 @@ export default function TasklyApp() {
       {/* Card Modal */}
       {taskly.selectedCardId && taskly.currentView === 'card' && <CardModal />}
     </div>
+  );
+}
+
+export default function RootPage() {
+  return (
+    <TasklyProvider>
+      <TasklyApp />
+    </TasklyProvider>
   );
 }
