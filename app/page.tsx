@@ -58,7 +58,7 @@ export default function Home() {
       board => board.id === taskly.uiState.selectedBoardId
     ) || null;
 
-    // This is line 83 - now properly typed with BoardViewProps interface
+    // Fixed TypeScript error - properly typed BoardView component with explicit props
     return <BoardView board={selectedBoard} />;
   }
 
