@@ -1,371 +1,448 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import {
-  DndContext,
-  DragOverlay,
-  DragStartEvent,
-  DragEndEvent,
-  DragOverEvent,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  closestCorners,
-  KeyboardSensor,
-  TouchSensor
-} from '@dnd-kit/core';
-import {
-  arrayMove,
-  SortableContext,
-  sortableKeyboardCoordinates,
-  verticalListSortingStrategy,
-  horizontalListSortingStrategy
-} from '@dnd-kit/sortable';
-import { coordinateGetter } from '@dnd-kit/utilities';
-
-import type {
-  User,
-  Board,
-  Column,
-  Card,
-  AppState,
-  UIState,
-  ViewMode,
-  LoginCredentials,
+import { useState, useEffect, useCallback, useContext, createContext } from 'react';
+import { 
+  AppState, 
+  UIState, 
+  ViewMode, 
+  User, 
+  Board, 
+  Column, 
+  Card, 
+  LoginCredentials, 
   SignUpCredentials,
-  AuthResponse,
   CreateBoardForm,
   CreateColumnForm,
   CreateCardForm,
   EditCardForm,
-  DragData
+  DragEndEvent 
 } from '@/types';
 
-// Storage service interface
-interface StorageService {
-  loadData(): Promise<AppState>;
-  saveData(data: AppState): Promise<void>;
-  clearData(): void;
+// Auth service for API calls
+class AuthService {
+  private baseUrl = '/api/auth';
+
+  async login(credentials: LoginCredentials): Promise<{ user: User; token: string }> {
+    const response = await fetch(`${this.baseUrl}/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(credentials),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Login failed');
+    }
+
+    return response.json();
+  }
+
+  async signUp(credentials: SignUpCredentials): Promise<{ user: User; token: string }> {
+    if (credentials.password !== credentials.confirmPassword) {
+      throw new Error('Passwords do not match');
+    }
+
+    const response = await fetch(`${this.baseUrl}/signup`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        email: credentials.email,
+        password: credentials.password,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Sign up failed');
+    }
+
+    return response.json();
+  }
+
+  async verifyToken(token: string): Promise<{ user: User }> {
+    const response = await fetch(`${this.baseUrl}/verify`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error('Token verification failed');
+    }
+
+    return response.json();
+  }
 }
 
-// Local storage implementation
-const localStorage: StorageService = {
-  loadData: async (): Promise<AppState> => {
-    if (typeof window === 'undefined') {
-      return { boards: [], columns: [], cards: [], user: null };
-    }
-    
-    const stored = window.localStorage.getItem('taskly-data');
-    if (!stored) {
-      return { boards: [], columns: [], cards: [], user: null };
-    }
-    
-    try {
-      const parsed = JSON.parse(stored);
-      return {
-        boards: parsed.boards || [],
-        columns: parsed.columns || [],
-        cards: parsed.cards || [],
-        user: parsed.user || null,
-      };
-    } catch (error) {
-      console.error('Error parsing stored data:', error);
-      return { boards: [], columns: [], cards: [], user: null };
-    }
-  },
-  
-  saveData: async (data: AppState): Promise<void> => {
-    if (typeof window === 'undefined') return;
-    
-    try {
-      window.localStorage.setItem('taskly-data', JSON.stringify(data));
-    } catch (error) {
-      console.error('Error saving data:', error);
-    }
-  },
-  
-  clearData: (): void => {
-    if (typeof window === 'undefined') return;
-    window.localStorage.removeItem('taskly-data');
-    window.localStorage.removeItem('taskly-auth-token');
+// API service for board operations
+class ApiService {
+  private baseUrl = '/api';
+  private token: string | null = null;
+
+  setToken(token: string | null) {
+    this.token = token;
   }
-};
 
-// Authentication token management
-const getAuthToken = (): string | null => {
-  if (typeof window === 'undefined') return null;
-  return window.localStorage.getItem('taskly-auth-token');
-};
-
-const setAuthToken = (token: string): void => {
-  if (typeof window === 'undefined') return;
-  window.localStorage.setItem('taskly-auth-token', token);
-};
-
-const removeAuthToken = (): void => {
-  if (typeof window === 'undefined') return;
-  window.localStorage.removeItem('taskly-auth-token');
-};
-
-// API helper functions
-const apiRequest = async (endpoint: string, options: RequestInit = {}): Promise<any> => {
-  const token = getAuthToken();
-  
-  const defaultHeaders: Record<string, string> = {
-    'Content-Type': 'application/json',
-  };
-  
-  if (token) {
-    defaultHeaders.Authorization = `Bearer ${token}`;
-  }
-  
-  const config: RequestInit = {
-    ...options,
-    headers: {
-      ...defaultHeaders,
+  private async request(url: string, options: RequestInit = {}) {
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
       ...options.headers,
-    },
-  };
-  
-  const response = await fetch(endpoint, config);
-  
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-    throw new Error(errorData.error || `HTTP ${response.status}`);
-  }
-  
-  return response.json();
-};
+    };
 
-// Custom hook for managing Taskly application state
-export function useTaskly() {
-  // Core state
+    if (this.token) {
+      headers['Authorization'] = `Bearer ${this.token}`;
+    }
+
+    const response = await fetch(url, {
+      ...options,
+      headers,
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Request failed' }));
+      throw new Error(error.error || 'Request failed');
+    }
+
+    return response.json();
+  }
+
+  // Board operations
+  async getBoards(): Promise<Board[]> {
+    return this.request(`${this.baseUrl}/boards`);
+  }
+
+  async createBoard(data: CreateBoardForm): Promise<Board> {
+    return this.request(`${this.baseUrl}/boards`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateBoard(id: string, updates: Partial<Board>): Promise<void> {
+    await this.request(`${this.baseUrl}/boards/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    });
+  }
+
+  async deleteBoard(id: string): Promise<void> {
+    await this.request(`${this.baseUrl}/boards/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // Column operations
+  async getColumns(boardId: string): Promise<Column[]> {
+    return this.request(`${this.baseUrl}/columns?boardId=${boardId}`);
+  }
+
+  async createColumn(data: CreateColumnForm & { boardId: string }): Promise<Column> {
+    return this.request(`${this.baseUrl}/columns`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateColumn(id: string, updates: Partial<Column>): Promise<void> {
+    await this.request(`${this.baseUrl}/columns/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    });
+  }
+
+  async deleteColumn(id: string): Promise<void> {
+    await this.request(`${this.baseUrl}/columns/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async reorderColumns(boardId: string, columnIds: string[]): Promise<void> {
+    await this.request(`${this.baseUrl}/columns/reorder`, {
+      method: 'POST',
+      body: JSON.stringify({ boardId, columnIds }),
+    });
+  }
+
+  // Card operations
+  async getCards(boardId: string): Promise<Card[]> {
+    return this.request(`${this.baseUrl}/cards?boardId=${boardId}`);
+  }
+
+  async createCard(data: CreateCardForm & { boardId: string; columnId: string }): Promise<Card> {
+    return this.request(`${this.baseUrl}/cards`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateCard(id: string, updates: Partial<EditCardForm>): Promise<void> {
+    await this.request(`${this.baseUrl}/cards/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    });
+  }
+
+  async moveCard(id: string, columnId: string, order: number): Promise<void> {
+    await this.request(`${this.baseUrl}/cards/${id}/move`, {
+      method: 'POST',
+      body: JSON.stringify({ columnId, order }),
+    });
+  }
+
+  async deleteCard(id: string): Promise<void> {
+    await this.request(`${this.baseUrl}/cards/${id}`, {
+      method: 'DELETE',
+    });
+  }
+}
+
+// Storage service for local state
+class StorageService {
+  private readonly TOKEN_KEY = 'taskly_auth_token';
+
+  saveToken(token: string): void {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(this.TOKEN_KEY, token);
+    }
+  }
+
+  getToken(): string | null {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem(this.TOKEN_KEY);
+    }
+    return null;
+  }
+
+  removeToken(): void {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem(this.TOKEN_KEY);
+    }
+  }
+}
+
+// Taskly hook context and state management
+interface TasklyContextValue {
+  // State
+  appState: AppState;
+  uiState: UIState;
+  isLoading: boolean;
+  error: string | null;
+
+  // Auth methods
+  login: (credentials: LoginCredentials) => Promise<void>;
+  signUp: (credentials: SignUpCredentials) => Promise<void>;
+  logout: () => void;
+  setAuthMode: (mode: 'login' | 'signup') => void;
+  clearError: () => void;
+
+  // UI navigation
+  setCurrentView: (view: ViewMode) => void;
+  selectBoard: (boardId: string | null) => void;
+  selectCard: (cardId: string | null) => void;
+
+  // Board operations
+  loadBoards: () => Promise<void>;
+  createBoard: (data: CreateBoardForm) => Promise<void>;
+  updateBoard: (id: string, updates: Partial<Board>) => Promise<void>;
+  deleteBoard: (id: string) => Promise<void>;
+
+  // Column operations
+  loadColumns: (boardId: string) => Promise<void>;
+  createColumn: (boardId: string, data: CreateColumnForm) => Promise<void>;
+  updateColumn: (id: string, updates: Partial<Column>) => Promise<void>;
+  deleteColumn: (id: string) => Promise<void>;
+
+  // Card operations
+  loadCards: (boardId: string) => Promise<void>;
+  createCard: (boardId: string, columnId: string, data: CreateCardForm) => Promise<void>;
+  updateCard: (id: string, updates: Partial<EditCardForm>) => Promise<void>;
+  deleteCard: (id: string) => Promise<void>;
+
+  // Drag and drop
+  handleDragEnd: (event: DragEndEvent) => Promise<void>;
+
+  // Utilities
+  getBoardById: (id: string) => Board | undefined;
+  getColumnById: (id: string) => Column | undefined;
+  getCardById: (id: string) => Card | undefined;
+  getBoardColumns: (boardId: string) => Column[];
+  getColumnCards: (columnId: string) => Card[];
+}
+
+const TasklyContext = createContext<TasklyContextValue | null>(null);
+
+export function TasklyProvider({ children }: { children: React.ReactNode }) {
+  // Services
+  const authService = new AuthService();
+  const apiService = new ApiService();
+  const storageService = new StorageService();
+
+  // State
   const [appState, setAppState] = useState<AppState>({
     boards: [],
     columns: [],
     cards: [],
     user: null,
   });
-  
-  // UI state
-  const [uiState, setUIState] = useState<UIState>({
+
+  const [uiState, setUiState] = useState<UIState>({
     currentView: 'auth',
     selectedBoardId: null,
     selectedCardId: null,
     authMode: 'login',
   });
-  
-  // Loading and error states
+
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isInitialized, setIsInitialized] = useState(false);
 
-  // Drag and drop state
-  const [draggedItem, setDraggedItem] = useState<DragData | null>(null);
-
-  // Sensors for drag and drop
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 8,
-      },
-    }),
-    useSensor(TouchSensor, {
-      activationConstraint: {
-        delay: 200,
-        tolerance: 8,
-      },
-    }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: coordinateGetter,
-    })
-  );
-
-  // Initialize app
+  // Initialize authentication on mount
   useEffect(() => {
-    const initializeApp = async () => {
-      try {
-        setIsLoading(true);
-        
-        // Check for existing auth token and verify
-        const token = getAuthToken();
-        if (token) {
-          try {
-            const response = await apiRequest('/api/auth/verify');
-            if (response.user) {
-              setAppState(prev => ({ ...prev, user: response.user }));
-              setUIState(prev => ({ ...prev, currentView: 'boards' }));
-              await loadUserData();
-            } else {
-              removeAuthToken();
-            }
-          } catch (error) {
-            console.error('Token verification failed:', error);
-            removeAuthToken();
-          }
+    const initAuth = async () => {
+      const token = storageService.getToken();
+      if (token) {
+        try {
+          setIsLoading(true);
+          const { user } = await authService.verifyToken(token);
+          apiService.setToken(token);
+          setAppState(prev => ({ ...prev, user }));
+          setUiState(prev => ({ ...prev, currentView: 'boards' }));
+        } catch (error) {
+          // Token is invalid, remove it
+          storageService.removeToken();
+          setUiState(prev => ({ ...prev, currentView: 'auth' }));
+        } finally {
+          setIsLoading(false);
         }
-        
-        // Load any cached data
-        const cachedData = await localStorage.loadData();
-        if (cachedData.user) {
-          setAppState(prev => ({ ...prev, ...cachedData }));
-        }
-      } catch (error) {
-        console.error('App initialization error:', error);
-        setError('Failed to initialize app');
-      } finally {
-        setIsLoading(false);
-        setIsInitialized(true);
       }
     };
 
-    initializeApp();
+    initAuth();
   }, []);
 
-  // Save data when state changes
-  useEffect(() => {
-    if (isInitialized) {
-      localStorage.saveData(appState);
-    }
-  }, [appState, isInitialized]);
+  // Error handling
+  const handleError = useCallback((error: unknown) => {
+    const message = error instanceof Error ? error.message : 'An error occurred';
+    setError(message);
+    setIsLoading(false);
+  }, []);
 
-  // Load user-specific data from API
-  const loadUserData = async () => {
-    if (!appState.user) return;
-    
-    try {
-      setIsLoading(true);
-      
-      // Load boards, columns, and cards from API
-      const [boardsResponse, columnsResponse, cardsResponse] = await Promise.allSettled([
-        apiRequest('/api/boards'),
-        apiRequest('/api/columns'),
-        apiRequest('/api/cards'),
-      ]);
-      
-      const boards = boardsResponse.status === 'fulfilled' ? boardsResponse.value.boards : [];
-      const columns = columnsResponse.status === 'fulfilled' ? columnsResponse.value.columns : [];
-      const cards = cardsResponse.status === 'fulfilled' ? cardsResponse.value.cards : [];
-      
-      setAppState(prev => ({
-        ...prev,
-        boards,
-        columns,
-        cards,
-      }));
-    } catch (error) {
-      console.error('Failed to load user data:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const clearError = useCallback(() => {
+    setError(null);
+  }, []);
 
-  // Authentication functions
-  const login = async (credentials: LoginCredentials): Promise<void> => {
+  // Auth methods
+  const login = useCallback(async (credentials: LoginCredentials) => {
     try {
       setIsLoading(true);
       setError(null);
-      
-      const response: AuthResponse = await apiRequest('/api/auth/login', {
-        method: 'POST',
-        body: JSON.stringify(credentials),
-      });
-      
-      setAuthToken(response.token);
-      setAppState(prev => ({ ...prev, user: response.user }));
-      setUIState(prev => ({ ...prev, currentView: 'boards' }));
-      
-      await loadUserData();
+      const { user, token } = await authService.login(credentials);
+      storageService.saveToken(token);
+      apiService.setToken(token);
+      setAppState(prev => ({ ...prev, user }));
+      setUiState(prev => ({ ...prev, currentView: 'boards' }));
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Login failed';
-      setError(message);
-      throw error;
+      handleError(error);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [handleError]);
 
-  const signUp = async (credentials: SignUpCredentials): Promise<void> => {
+  const signUp = useCallback(async (credentials: SignUpCredentials) => {
     try {
       setIsLoading(true);
       setError(null);
-      
-      // Validate password confirmation
-      if (credentials.password !== credentials.confirmPassword) {
-        throw new Error('Passwords do not match');
-      }
-      
-      const response: AuthResponse = await apiRequest('/api/auth/signup', {
-        method: 'POST',
-        body: JSON.stringify({
-          email: credentials.email,
-          password: credentials.password,
-        }),
-      });
-      
-      setAuthToken(response.token);
-      setAppState(prev => ({ ...prev, user: response.user }));
-      setUIState(prev => ({ ...prev, currentView: 'boards' }));
-      
-      await loadUserData();
+      const { user, token } = await authService.signUp(credentials);
+      storageService.saveToken(token);
+      apiService.setToken(token);
+      setAppState(prev => ({ ...prev, user }));
+      setUiState(prev => ({ ...prev, currentView: 'boards' }));
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Sign up failed';
-      setError(message);
-      throw error;
+      handleError(error);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [handleError]);
 
-  const logout = async (): Promise<void> => {
-    removeAuthToken();
-    localStorage.clearData();
-    setAppState({ boards: [], columns: [], cards: [], user: null });
-    setUIState({
+  const logout = useCallback(() => {
+    storageService.removeToken();
+    apiService.setToken(null);
+    setAppState({
+      boards: [],
+      columns: [],
+      cards: [],
+      user: null,
+    });
+    setUiState({
       currentView: 'auth',
       selectedBoardId: null,
       selectedCardId: null,
       authMode: 'login',
     });
     setError(null);
-  };
+  }, []);
+
+  const setAuthMode = useCallback((mode: 'login' | 'signup') => {
+    setUiState(prev => ({ ...prev, authMode: mode }));
+    setError(null);
+  }, []);
+
+  // UI navigation
+  const setCurrentView = useCallback((view: ViewMode) => {
+    setUiState(prev => ({ ...prev, currentView: view }));
+  }, []);
+
+  const selectBoard = useCallback((boardId: string | null) => {
+    setUiState(prev => ({ 
+      ...prev, 
+      selectedBoardId: boardId,
+      currentView: boardId ? 'board' : 'boards',
+      selectedCardId: null 
+    }));
+  }, []);
+
+  const selectCard = useCallback((cardId: string | null) => {
+    setUiState(prev => ({ 
+      ...prev, 
+      selectedCardId: cardId,
+      currentView: cardId ? 'card' : 'board'
+    }));
+  }, []);
 
   // Board operations
-  const createBoard = async (form: CreateBoardForm): Promise<void> => {
-    if (!appState.user) throw new Error('User not authenticated');
-    
+  const loadBoards = useCallback(async () => {
     try {
       setIsLoading(true);
-      const response = await apiRequest('/api/boards', {
-        method: 'POST',
-        body: JSON.stringify({
-          title: form.title,
-          userId: appState.user.id,
-          order: appState.boards.length,
-        }),
-      });
-      
-      setAppState(prev => ({
-        ...prev,
-        boards: [...prev.boards, response.board],
-      }));
+      const boards = await apiService.getBoards();
+      setAppState(prev => ({ ...prev, boards }));
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to create board';
-      setError(message);
-      throw error;
+      handleError(error);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [handleError]);
 
-  const updateBoard = async (id: string, updates: Partial<Pick<Board, 'title' | 'isArchived'>>): Promise<void> => {
+  const createBoard = useCallback(async (data: CreateBoardForm) => {
     try {
       setIsLoading(true);
-      await apiRequest(`/api/boards/${id}`, {
-        method: 'PUT',
-        body: JSON.stringify(updates),
-      });
-      
+      const board = await apiService.createBoard(data);
+      setAppState(prev => ({ 
+        ...prev, 
+        boards: [...prev.boards, board] 
+      }));
+    } catch (error) {
+      handleError(error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [handleError]);
+
+  const updateBoard = useCallback(async (id: string, updates: Partial<Board>) => {
+    try {
+      await apiService.updateBoard(id, updates);
       setAppState(prev => ({
         ...prev,
         boards: prev.boards.map(board => 
@@ -373,21 +450,13 @@ export function useTaskly() {
         ),
       }));
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to update board';
-      setError(message);
-      throw error;
-    } finally {
-      setIsLoading(false);
+      handleError(error);
     }
-  };
+  }, [handleError]);
 
-  const deleteBoard = async (id: string): Promise<void> => {
+  const deleteBoard = useCallback(async (id: string) => {
     try {
-      setIsLoading(true);
-      await apiRequest(`/api/boards/${id}`, {
-        method: 'DELETE',
-      });
-      
+      await apiService.deleteBoard(id);
       setAppState(prev => ({
         ...prev,
         boards: prev.boards.filter(board => board.id !== id),
@@ -395,66 +464,48 @@ export function useTaskly() {
         cards: prev.cards.filter(card => card.boardId !== id),
       }));
       
-      // Navigate away from deleted board
+      // Navigate back to boards if this board was selected
       if (uiState.selectedBoardId === id) {
-        setUIState(prev => ({
-          ...prev,
+        setUiState(prev => ({ 
+          ...prev, 
+          selectedBoardId: null, 
           currentView: 'boards',
-          selectedBoardId: null,
+          selectedCardId: null
         }));
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to delete board';
-      setError(message);
-      throw error;
-    } finally {
-      setIsLoading(false);
+      handleError(error);
     }
-  };
-
-  const archiveBoard = async (id: string): Promise<void> => {
-    await updateBoard(id, { isArchived: true });
-  };
-
-  const restoreBoard = async (id: string): Promise<void> => {
-    await updateBoard(id, { isArchived: false });
-  };
+  }, [handleError, uiState.selectedBoardId]);
 
   // Column operations
-  const createColumn = async (boardId: string, form: CreateColumnForm): Promise<void> => {
+  const loadColumns = useCallback(async (boardId: string) => {
     try {
-      setIsLoading(true);
-      const boardColumns = appState.columns.filter(col => col.boardId === boardId);
-      const response = await apiRequest('/api/columns', {
-        method: 'POST',
-        body: JSON.stringify({
-          boardId,
-          title: form.title,
-          order: boardColumns.length,
-        }),
-      });
-      
+      const columns = await apiService.getColumns(boardId);
       setAppState(prev => ({
         ...prev,
-        columns: [...prev.columns, response.column],
+        columns: prev.columns.filter(c => c.boardId !== boardId).concat(columns),
       }));
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to create column';
-      setError(message);
-      throw error;
-    } finally {
-      setIsLoading(false);
+      handleError(error);
     }
-  };
+  }, [handleError]);
 
-  const updateColumn = async (id: string, updates: Partial<Pick<Column, 'title'>>): Promise<void> => {
+  const createColumn = useCallback(async (boardId: string, data: CreateColumnForm) => {
     try {
-      setIsLoading(true);
-      await apiRequest(`/api/columns/${id}`, {
-        method: 'PUT',
-        body: JSON.stringify(updates),
-      });
-      
+      const column = await apiService.createColumn({ ...data, boardId });
+      setAppState(prev => ({
+        ...prev,
+        columns: [...prev.columns, column],
+      }));
+    } catch (error) {
+      handleError(error);
+    }
+  }, [handleError]);
+
+  const updateColumn = useCallback(async (id: string, updates: Partial<Column>) => {
+    try {
+      await apiService.updateColumn(id, updates);
       setAppState(prev => ({
         ...prev,
         columns: prev.columns.map(column => 
@@ -462,98 +513,55 @@ export function useTaskly() {
         ),
       }));
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to update column';
-      setError(message);
-      throw error;
-    } finally {
-      setIsLoading(false);
+      handleError(error);
     }
-  };
+  }, [handleError]);
 
-  const deleteColumn = async (id: string): Promise<void> => {
+  const deleteColumn = useCallback(async (id: string) => {
     try {
-      setIsLoading(true);
-      await apiRequest(`/api/columns/${id}`, {
-        method: 'DELETE',
-      });
-      
+      await apiService.deleteColumn(id);
       setAppState(prev => ({
         ...prev,
         columns: prev.columns.filter(column => column.id !== id),
         cards: prev.cards.filter(card => card.columnId !== id),
       }));
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to delete column';
-      setError(message);
-      throw error;
-    } finally {
-      setIsLoading(false);
+      handleError(error);
     }
-  };
-
-  const reorderColumns = async (boardId: string, columnOrders: Array<{ id: string; order: number }>): Promise<void> => {
-    try {
-      await apiRequest('/api/columns/reorder', {
-        method: 'PUT',
-        body: JSON.stringify({ columnOrders }),
-      });
-      
-      setAppState(prev => ({
-        ...prev,
-        columns: prev.columns.map(column => {
-          const orderUpdate = columnOrders.find(update => update.id === column.id);
-          return orderUpdate ? { ...column, order: orderUpdate.order } : column;
-        }),
-      }));
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to reorder columns';
-      setError(message);
-      throw error;
-    }
-  };
+  }, [handleError]);
 
   // Card operations
-  const createCard = async (columnId: string, form: CreateCardForm): Promise<void> => {
-    const column = appState.columns.find(col => col.id === columnId);
-    if (!column) throw new Error('Column not found');
-    
+  const loadCards = useCallback(async (boardId: string) => {
     try {
-      setIsLoading(true);
-      const columnCards = appState.cards.filter(card => card.columnId === columnId);
-      const response = await apiRequest('/api/cards', {
-        method: 'POST',
-        body: JSON.stringify({
-          boardId: column.boardId,
-          columnId,
-          title: form.title,
-          description: form.description,
-          labels: form.labels,
-          dueDate: form.dueDate,
-          order: columnCards.length,
-        }),
-      });
-      
+      const cards = await apiService.getCards(boardId);
       setAppState(prev => ({
         ...prev,
-        cards: [...prev.cards, response.card],
+        cards: prev.cards.filter(c => c.boardId !== boardId).concat(cards),
       }));
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to create card';
-      setError(message);
-      throw error;
-    } finally {
-      setIsLoading(false);
+      handleError(error);
     }
-  };
+  }, [handleError]);
 
-  const updateCard = async (id: string, updates: Partial<EditCardForm>): Promise<void> => {
+  const createCard = useCallback(async (
+    boardId: string, 
+    columnId: string, 
+    data: CreateCardForm
+  ) => {
     try {
-      setIsLoading(true);
-      await apiRequest(`/api/cards/${id}`, {
-        method: 'PUT',
-        body: JSON.stringify(updates),
-      });
-      
+      const card = await apiService.createCard({ ...data, boardId, columnId });
+      setAppState(prev => ({
+        ...prev,
+        cards: [...prev.cards, card],
+      }));
+    } catch (error) {
+      handleError(error);
+    }
+  }, [handleError]);
+
+  const updateCard = useCallback(async (id: string, updates: Partial<EditCardForm>) => {
+    try {
+      await apiService.updateCard(id, updates);
       setAppState(prev => ({
         ...prev,
         cards: prev.cards.map(card => 
@@ -561,359 +569,181 @@ export function useTaskly() {
         ),
       }));
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to update card';
-      setError(message);
-      throw error;
-    } finally {
-      setIsLoading(false);
+      handleError(error);
     }
-  };
+  }, [handleError]);
 
-  const moveCard = async (cardId: string, targetColumnId: string, targetOrder: number): Promise<void> => {
+  const deleteCard = useCallback(async (id: string) => {
     try {
-      await apiRequest(`/api/cards/${cardId}/move`, {
-        method: 'PUT',
-        body: JSON.stringify({
-          columnId: targetColumnId,
-          order: targetOrder,
-        }),
-      });
-      
-      setAppState(prev => ({
-        ...prev,
-        cards: prev.cards.map(card => 
-          card.id === cardId 
-            ? { ...card, columnId: targetColumnId, order: targetOrder }
-            : card
-        ),
-      }));
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to move card';
-      setError(message);
-      throw error;
-    }
-  };
-
-  const deleteCard = async (id: string): Promise<void> => {
-    try {
-      setIsLoading(true);
-      await apiRequest(`/api/cards/${id}`, {
-        method: 'DELETE',
-      });
-      
+      await apiService.deleteCard(id);
       setAppState(prev => ({
         ...prev,
         cards: prev.cards.filter(card => card.id !== id),
       }));
-      
-      // Close card modal if this card was selected
-      if (uiState.selectedCardId === id) {
-        setUIState(prev => ({ ...prev, selectedCardId: null }));
-      }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to delete card';
-      setError(message);
-      throw error;
-    } finally {
-      setIsLoading(false);
+      handleError(error);
     }
-  };
+  }, [handleError]);
 
-  const archiveCard = async (id: string): Promise<void> => {
-    await updateCard(id, { isArchived: true });
-  };
-
-  const restoreCard = async (id: string): Promise<void> => {
-    await updateCard(id, { isArchived: false });
-  };
-
-  // Drag and drop handlers
-  const handleDragStart = (event: DragStartEvent) => {
-    const { active } = event;
-    const activeData = active.data.current as DragData | undefined;
-    
-    if (activeData) {
-      setDraggedItem(activeData);
-    }
-  };
-
-  const handleDragEnd = async (event: DragEndEvent) => {
+  // Drag and drop handling
+  const handleDragEnd = useCallback(async (event: DragEndEvent) => {
     const { active, over } = event;
-    
-    if (!over || !draggedItem) {
-      setDraggedItem(null);
-      return;
-    }
-    
+
+    if (!over || active.id === over.id) return;
+
+    const activeData = active.data.current;
+    const overData = over.data.current;
+
+    if (!activeData || !overData) return;
+
     try {
-      if (draggedItem.type === 'card') {
-        const card = draggedItem.card;
-        const overId = over.id as string;
-        const overData = over.data.current as DragData | undefined;
+      // Handle card movement
+      if (activeData.type === 'card') {
+        const card = activeData.card as Card;
         
-        // Moving card to different column
-        if (overData?.type === 'column' || overData?.type === 'column-cards') {
-          const targetColumnId = overData.type === 'column' 
-            ? overData.column.id 
-            : overData.columnId;
+        if (overData.type === 'column') {
+          // Moving card to a different column
+          const targetColumn = overData.column as Column;
+          const targetCards = appState.cards.filter(c => c.columnId === targetColumn.id);
+          const newOrder = targetCards.length > 0 ? Math.max(...targetCards.map(c => c.order)) + 1 : 0;
           
-          if (card.columnId !== targetColumnId) {
-            const targetColumnCards = appState.cards
-              .filter(c => c.columnId === targetColumnId && !c.isArchived)
-              .sort((a, b) => a.order - b.order);
-            
-            await moveCard(card.id, targetColumnId, targetColumnCards.length);
-          }
-        }
-        // Reordering within same column
-        else if (overData?.type === 'card') {
-          const targetCard = overData.card;
-          if (card.id !== targetCard.id && card.columnId === targetCard.columnId) {
+          await apiService.moveCard(card.id, targetColumn.id, newOrder);
+          
+          setAppState(prev => ({
+            ...prev,
+            cards: prev.cards.map(c => 
+              c.id === card.id 
+                ? { ...c, columnId: targetColumn.id, order: newOrder }
+                : c
+            ),
+          }));
+        } else if (overData.type === 'card') {
+          // Moving card to another card's position
+          const targetCard = overData.card as Card;
+          
+          if (card.columnId === targetCard.columnId) {
+            // Same column reordering
             const columnCards = appState.cards
-              .filter(c => c.columnId === card.columnId && !c.isArchived)
+              .filter(c => c.columnId === card.columnId && c.id !== card.id)
               .sort((a, b) => a.order - b.order);
             
-            const oldIndex = columnCards.findIndex(c => c.id === card.id);
-            const newIndex = columnCards.findIndex(c => c.id === targetCard.id);
+            const targetIndex = columnCards.findIndex(c => c.id === targetCard.id);
+            const newOrder = targetIndex === 0 
+              ? targetCard.order / 2 
+              : (columnCards[targetIndex - 1].order + targetCard.order) / 2;
             
-            if (oldIndex !== -1 && newIndex !== -1) {
-              const newOrder = columnCards[newIndex]?.order ?? 0;
-              await moveCard(card.id, card.columnId, newOrder);
-            }
-          }
-        }
-      }
-      // Column reordering
-      else if (draggedItem.type === 'column') {
-        const column = draggedItem.column;
-        const overData = over.data.current as DragData | undefined;
-        
-        if (overData?.type === 'column') {
-          const targetColumn = overData.column;
-          if (column.id !== targetColumn.id && column.boardId === targetColumn.boardId) {
-            const boardColumns = appState.columns
-              .filter(c => c.boardId === column.boardId)
-              .sort((a, b) => a.order - b.order);
+            await apiService.moveCard(card.id, card.columnId, newOrder);
             
-            const oldIndex = boardColumns.findIndex(c => c.id === column.id);
-            const newIndex = boardColumns.findIndex(c => c.id === targetColumn.id);
+            setAppState(prev => ({
+              ...prev,
+              cards: prev.cards.map(c => 
+                c.id === card.id ? { ...c, order: newOrder } : c
+              ),
+            }));
+          } else {
+            // Different column
+            await apiService.moveCard(card.id, targetCard.columnId, targetCard.order);
             
-            if (oldIndex !== -1 && newIndex !== -1) {
-              const reorderedColumns = arrayMove(boardColumns, oldIndex, newIndex);
-              const columnOrders = reorderedColumns.map((col, index) => ({
-                id: col.id,
-                order: index,
-              }));
-              
-              await reorderColumns(column.boardId, columnOrders);
-            }
+            setAppState(prev => ({
+              ...prev,
+              cards: prev.cards.map(c => 
+                c.id === card.id 
+                  ? { ...c, columnId: targetCard.columnId, order: targetCard.order }
+                  : c
+              ),
+            }));
           }
         }
       }
     } catch (error) {
-      console.error('Drag operation failed:', error);
-      const message = error instanceof Error ? error.message : 'Drag operation failed';
-      setError(message);
-    } finally {
-      setDraggedItem(null);
+      handleError(error);
     }
-  };
+  }, [appState.cards, apiService, handleError]);
 
-  // UI state management
-  const setCurrentView = (view: ViewMode) => {
-    setUIState(prev => ({ ...prev, currentView: view }));
-  };
-
-  const setSelectedBoardId = (id: string | null) => {
-    setUIState(prev => ({ ...prev, selectedBoardId: id }));
-  };
-
-  const setSelectedCardId = (id: string | null) => {
-    setUIState(prev => ({ ...prev, selectedCardId: id }));
-  };
-
-  const setAuthMode = (mode: 'login' | 'signup') => {
-    setUIState(prev => ({ ...prev, authMode: mode }));
-  };
-
-  const navigateToBoard = (boardId: string) => {
-    setUIState(prev => ({
-      ...prev,
-      currentView: 'board',
-      selectedBoardId: boardId,
-    }));
-  };
-
-  const navigateToBoards = () => {
-    setUIState(prev => ({
-      ...prev,
-      currentView: 'boards',
-      selectedBoardId: null,
-    }));
-  };
-
-  const openCardModal = (cardId: string) => {
-    setUIState(prev => ({
-      ...prev,
-      selectedCardId: cardId,
-    }));
-  };
-
-  const closeCardModal = () => {
-    setUIState(prev => ({
-      ...prev,
-      selectedCardId: null,
-    }));
-  };
-
-  // Error management
-  const clearError = () => {
-    setError(null);
-  };
-
-  // Computed values
-  const activeBoards = useMemo(() => {
-    return appState.boards.filter(board => !board.isArchived);
+  // Utility methods
+  const getBoardById = useCallback((id: string): Board | undefined => {
+    return appState.boards.find(board => board.id === id);
   }, [appState.boards]);
 
-  const archivedBoards = useMemo(() => {
-    return appState.boards.filter(board => board.isArchived);
-  }, [appState.boards]);
+  const getColumnById = useCallback((id: string): Column | undefined => {
+    return appState.columns.find(column => column.id === id);
+  }, [appState.columns]);
 
-  const selectedBoard = useMemo(() => {
-    return uiState.selectedBoardId 
-      ? appState.boards.find(board => board.id === uiState.selectedBoardId) 
-      : undefined;
-  }, [appState.boards, uiState.selectedBoardId]);
+  const getCardById = useCallback((id: string): Card | undefined => {
+    return appState.cards.find(card => card.id === id);
+  }, [appState.cards]);
 
-  const selectedCard = useMemo(() => {
-    return uiState.selectedCardId 
-      ? appState.cards.find(card => card.id === uiState.selectedCardId) 
-      : undefined;
-  }, [appState.cards, uiState.selectedCardId]);
-
-  const boardColumns = useMemo(() => {
-    if (!uiState.selectedBoardId) return [];
+  const getBoardColumns = useCallback((boardId: string): Column[] => {
     return appState.columns
-      .filter(column => column.boardId === uiState.selectedBoardId)
+      .filter(column => column.boardId === boardId)
       .sort((a, b) => a.order - b.order);
-  }, [appState.columns, uiState.selectedBoardId]);
+  }, [appState.columns]);
 
-  const getColumnCards = useCallback((columnId: string) => {
+  const getColumnCards = useCallback((columnId: string): Card[] => {
     return appState.cards
       .filter(card => card.columnId === columnId && !card.isArchived)
       .sort((a, b) => a.order - b.order);
   }, [appState.cards]);
 
-  const getBoardCards = useCallback((boardId: string) => {
-    return appState.cards
-      .filter(card => card.boardId === boardId && !card.isArchived)
-      .sort((a, b) => a.order - b.order);
-  }, [appState.cards]);
-
-  // Return the complete API
-  return {
+  const contextValue: TasklyContextValue = {
     // State
     appState,
     uiState,
     isLoading,
     error,
-    isInitialized,
-    draggedItem,
-    
-    // Authentication
+
+    // Auth methods
     login,
     signUp,
     logout,
-    
+    setAuthMode,
+    clearError,
+
+    // UI navigation
+    setCurrentView,
+    selectBoard,
+    selectCard,
+
     // Board operations
+    loadBoards,
     createBoard,
     updateBoard,
     deleteBoard,
-    archiveBoard,
-    restoreBoard,
-    
+
     // Column operations
+    loadColumns,
     createColumn,
     updateColumn,
     deleteColumn,
-    reorderColumns,
-    
+
     // Card operations
+    loadCards,
     createCard,
     updateCard,
     deleteCard,
-    archiveCard,
-    restoreCard,
-    moveCard,
-    
+
     // Drag and drop
-    handleDragStart,
     handleDragEnd,
-    sensors,
-    
-    // UI navigation
-    setCurrentView,
-    setSelectedBoardId,
-    setSelectedCardId,
-    setAuthMode,
-    navigateToBoard,
-    navigateToBoards,
-    openCardModal,
-    closeCardModal,
-    
+
     // Utilities
-    clearError,
-    
-    // Computed values
-    activeBoards,
-    archivedBoards,
-    selectedBoard,
-    selectedCard,
-    boardColumns,
+    getBoardById,
+    getColumnById,
+    getCardById,
+    getBoardColumns,
     getColumnCards,
-    getBoardCards,
   };
-}
 
-// Context provider component
-import { createContext, useContext, ReactNode } from 'react';
-
-const TasklyContext = createContext<ReturnType<typeof useTaskly> | null>(null);
-
-export const TasklyProvider = ({ children }: { children: ReactNode }) => {
-  const taskly = useTaskly();
-  
   return (
-    <TasklyContext.Provider value={taskly}>
-      <DndContext
-        sensors={taskly.sensors}
-        collisionDetection={closestCorners}
-        onDragStart={taskly.handleDragStart}
-        onDragEnd={taskly.handleDragEnd}
-      >
-        {children}
-        <DragOverlay>
-          {taskly.draggedItem?.type === 'card' && (
-            <div className="opacity-80">
-              {/* Card drag overlay component would go here */}
-            </div>
-          )}
-          {taskly.draggedItem?.type === 'column' && (
-            <div className="opacity-80">
-              {/* Column drag overlay component would go here */}
-            </div>
-          )}
-        </DragOverlay>
-      </DndContext>
+    <TasklyContext.Provider value={contextValue}>
+      {children}
     </TasklyContext.Provider>
   );
-};
+}
 
-export const useTasklyContext = () => {
+export function useTaskly(): TasklyContextValue {
   const context = useContext(TasklyContext);
   if (!context) {
-    throw new Error('useTasklyContext must be used within a TasklyProvider');
+    throw new Error('useTaskly must be used within a TasklyProvider');
   }
   return context;
-};
+}
