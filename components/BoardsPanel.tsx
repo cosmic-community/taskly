@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Plus, Search, Grid3x3, MoreHorizontal, Archive, Star, Clock, Users, Loader2, Sparkles } from 'lucide-react';
+import { Plus, Search, Grid, MoreHorizontal, Archive, Star, Clock, Users, Loader2, Sparkles } from 'lucide-react';
 import { useTaskly } from '@/lib/hooks';
 import { Board } from '@/types';
 
@@ -139,7 +139,7 @@ export default function BoardsPanel() {
         {filteredBoards.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-64 text-center">
             <div className="p-6 bg-secondary/20 rounded-3xl mb-4">
-              <Grid3x3 className="w-12 h-12 text-muted-foreground mx-auto" />
+              <Grid className="w-12 h-12 text-muted-foreground mx-auto" />
             </div>
             <h3 className="text-xl font-semibold text-muted-foreground mb-2">
               {searchTerm ? 'No boards found' : 'No boards yet'}
@@ -152,7 +152,11 @@ export default function BoardsPanel() {
             </p>
             {!searchTerm && (
               <button
-                onClick={() => document.querySelector('input[placeholder="Enter board title..."]')?.focus()}
+                onClick={() => {
+                  // Fix: Properly type the element and add null check
+                  const input = document.querySelector('input[placeholder="Enter board title..."]') as HTMLInputElement | null;
+                  input?.focus();
+                }}
                 className="btn-primary"
               >
                 <Plus className="w-4 h-4 mr-2" />
@@ -170,7 +174,7 @@ export default function BoardsPanel() {
               >
                 <div className="flex items-start justify-between mb-4">
                   <div className="p-3 bg-primary/10 rounded-xl group-hover:bg-primary/20 transition-colors duration-200">
-                    <Grid3x3 className="w-6 h-6 text-primary" />
+                    <Grid className="w-6 h-6 text-primary" />
                   </div>
                   
                   <button
@@ -191,7 +195,7 @@ export default function BoardsPanel() {
                   
                   <div className="flex items-center gap-4 text-sm text-muted-foreground">
                     <div className="flex items-center gap-1">
-                      <Grid3x3 className="w-3 h-3" />
+                      <Grid className="w-3 h-3" />
                       <span>
                         {taskly.appState.columns.filter(c => c.boardId === board.id).length} columns
                       </span>
@@ -222,7 +226,7 @@ export default function BoardsPanel() {
         <div className="flex items-center justify-between text-sm text-muted-foreground">
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-2">
-              <Grid3x3 className="w-4 h-4 text-primary" />
+              <Grid className="w-4 h-4 text-primary" />
               <span>{activeBoards.length} Active Boards</span>
             </div>
             <div className="flex items-center gap-2">

@@ -89,6 +89,13 @@ export default function Column({ column, cards }: ColumnProps) {
     }
   };
 
+  // Fix: Add handleCardClick function for the onClick prop
+  const handleCardClick = (card: CardType) => {
+    // Set the selected card and switch to card view for editing
+    taskly.setSelectedCard(card.id);
+    taskly.setCurrentView('card');
+  };
+
   return (
     <div
       ref={setNodeRef}
@@ -168,7 +175,11 @@ export default function Column({ column, cards }: ColumnProps) {
             strategy={verticalListSortingStrategy}
           >
             {sortedCards.map((card) => (
-              <Card key={card.id} card={card} />
+              <Card 
+                key={card.id} 
+                card={card} 
+                onClick={() => handleCardClick(card)}
+              />
             ))}
           </SortableContext>
 
