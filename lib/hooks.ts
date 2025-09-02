@@ -1,4 +1,6 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+'use client';
+
+import { useState, useEffect, useCallback, useMemo, createContext, useContext } from 'react';
 import { User, Board, Column, Card, AppState, UIState, LoginCredentials, SignUpCredentials, ViewMode, DragEndEvent } from '@/types';
 
 // API helper functions
@@ -134,11 +136,75 @@ const cardApi = {
 
   moveCard: async (id: string, columnId: string, order: number) => {
     return apiRequest(`/api/cards/${id}/move`, {
-      method: 'PATCH',
+      method: 'POST',
       body: JSON.stringify({ columnId, order }),
     });
   },
 };
+
+// Define the context type
+interface TasklyContextType {
+  // State
+  appState: AppState;
+  uiState: UIState;
+  isLoading: boolean;
+  error: string | null;
+  
+  // Computed
+  currentBoard: Board | null;
+  boardColumns: Column[];
+  selectedCard: Card | null;
+  boards: Board[];
+  cards: Card[];
+  user: User | null;
+  selectedBoardId: string | null;
+  
+  // Auth
+  login: (credentials: LoginCredentials) => Promise<void>;
+  signUp: (credentials: SignUpCredentials) => Promise<void>;
+  logout: () => void;
+  checkAuth: () => Promise<void>;
+  
+  // Boards
+  loadBoards: () => Promise<void>;
+  createBoard: (title: string) => Promise<Board>;
+  updateBoard: (id: string, updates: Partial<Board>) => Promise<void>;
+  deleteBoard: (id: string) => Promise<void>;
+  getBoardById: (id: string) => Board | null;
+  
+  // Columns
+  loadColumns: (boardId: string) => Promise<void>;
+  createColumn: (boardId: string, title: string) => Promise<Column>;
+  addColumn: (boardId: string, title: string) => Promise<Column>;
+  updateColumn: (id: string, updates: Partial<Column>) => Promise<void>;
+  deleteColumn: (id: string) => Promise<void>;
+  getColumnsByBoardId: (boardId: string) => Column[];
+  
+  // Cards
+  loadCards: (boardId: string) => Promise<void>;
+  createCard: (boardId: string, columnId: string, title: string) => Promise<Card>;
+  addCard: (boardId: string, columnId: string, title: string) => Promise<Card>;
+  updateCard: (id: string, updates: Partial<Card>) => Promise<void>;
+  deleteCard: (id: string) => Promise<void>;
+  moveCard: (id: string, columnId: string, order: number) => Promise<void>;
+  getCardById: (id: string) => Card | null;
+  getCardsByColumnId: (columnId: string) => Card[];
+  
+  // UI
+  setAuthMode: (mode: 'login' | 'signup') => void;
+  setCurrentView: (view: ViewMode) => void;
+  setView: (view: ViewMode) => void;
+  selectBoard: (boardId: string | null) => void;
+  selectCard: (cardId: string | null) => void;
+  setSelectedCardId: (cardId: string | null) => void;
+  clearError: () => void;
+  
+  // Drag & Drop
+  handleDragEnd: (event: DragEndEvent) => Promise<void>;
+}
+
+// Create context
+const TasklyContext = createContext<TasklyContextType | null>(null);
 
 // Main hook
 export function useTaskly() {
@@ -209,6 +275,20 @@ export function useTaskly() {
     setUIState({ currentView: 'auth', selectedBoardId: null, selectedCardId: null, authMode: 'login' });
   }, []);
 
+  const checkAuth = useCallback(async () => {
+    const token = localStorage.getItem('taskly_token');
+    if (token) {
+      try {
+        const { user } = await authApi.verify();
+        setAppState(prev => ({ ...prev, user }));
+        setUIState(prev => ({ ...prev, currentView: 'boards' }));
+      } catch (err) {
+        localStorage.removeItem('taskly_token');
+        setUIState(prev => ({ ...prev, currentView: 'auth' }));
+      }
+    }
+  }, []);
+
   // Board functions
   const loadBoards = useCallback(async () => {
     try {
@@ -265,6 +345,10 @@ export function useTaskly() {
     }
   }, []);
 
+  const getBoardById = useCallback((id: string): Board | null => {
+    return appState.boards.find(board => board.id === id) || null;
+  }, [appState.boards]);
+
   // Column functions
   const loadColumns = useCallback(async (boardId: string) => {
     try {
@@ -285,6 +369,10 @@ export function useTaskly() {
       throw err;
     }
   }, []);
+
+  const addColumn = useCallback(async (boardId: string, title: string) => {
+    return createColumn(boardId, title);
+  }, [createColumn]);
 
   const updateColumn = useCallback(async (id: string, updates: Partial<Column>) => {
     try {
@@ -312,6 +400,10 @@ export function useTaskly() {
     }
   }, []);
 
+  const getColumnsByBoardId = useCallback((boardId: string): Column[] => {
+    return appState.columns.filter(column => column.boardId === boardId);
+  }, [appState.columns]);
+
   // Card functions
   const loadCards = useCallback(async (boardId: string) => {
     try {
@@ -332,6 +424,10 @@ export function useTaskly() {
       throw err;
     }
   }, []);
+
+  const addCard = useCallback(async (boardId: string, columnId: string, title: string) => {
+    return createCard(boardId, columnId, title);
+  }, [createCard]);
 
   const updateCard = useCallback(async (id: string, updates: Partial<Card>) => {
     try {
@@ -373,6 +469,14 @@ export function useTaskly() {
     }
   }, []);
 
+  const getCardById = useCallback((id: string): Card | null => {
+    return appState.cards.find(card => card.id === id) || null;
+  }, [appState.cards]);
+
+  const getCardsByColumnId = useCallback((columnId: string): Card[] => {
+    return appState.cards.filter(card => card.columnId === columnId);
+  }, [appState.cards]);
+
   // UI state functions
   const setAuthMode = useCallback((mode: 'login' | 'signup') => {
     setUIState(prev => ({ ...prev, authMode: mode }));
@@ -382,6 +486,10 @@ export function useTaskly() {
     setUIState(prev => ({ ...prev, currentView: view }));
   }, []);
 
+  const setView = useCallback((view: ViewMode) => {
+    setCurrentView(view);
+  }, [setCurrentView]);
+
   const selectBoard = useCallback((boardId: string | null) => {
     setUIState(prev => ({ ...prev, selectedBoardId: boardId }));
   }, []);
@@ -389,6 +497,10 @@ export function useTaskly() {
   const selectCard = useCallback((cardId: string | null) => {
     setUIState(prev => ({ ...prev, selectedCardId: cardId }));
   }, []);
+
+  const setSelectedCardId = useCallback((cardId: string | null) => {
+    selectCard(cardId);
+  }, [selectCard]);
 
   // Load board data when a board is selected
   useEffect(() => {
@@ -400,18 +512,8 @@ export function useTaskly() {
 
   // Initial auth check
   useEffect(() => {
-    const token = localStorage.getItem('taskly_token');
-    if (token) {
-      authApi.verify()
-        .then(({ user }) => {
-          setAppState(prev => ({ ...prev, user }));
-          setUIState(prev => ({ ...prev, currentView: 'boards' }));
-        })
-        .catch(() => {
-          localStorage.removeItem('taskly_token');
-        });
-    }
-  }, []);
+    checkAuth();
+  }, [checkAuth]);
 
   // Load boards when user is authenticated
   useEffect(() => {
@@ -469,39 +571,72 @@ export function useTaskly() {
     currentBoard,
     boardColumns,
     selectedCard,
+    boards: appState.boards,
+    cards: appState.cards,
+    user: appState.user,
+    selectedBoardId: uiState.selectedBoardId,
     
     // Auth
     login,
     signUp,
     logout,
+    checkAuth,
     
     // Boards
     loadBoards,
     createBoard,
     updateBoard,
     deleteBoard,
+    getBoardById,
     
     // Columns
     loadColumns,
     createColumn,
+    addColumn,
     updateColumn,
     deleteColumn,
+    getColumnsByBoardId,
     
     // Cards
     loadCards,
     createCard,
+    addCard,
     updateCard,
     deleteCard,
     moveCard,
+    getCardById,
+    getCardsByColumnId,
     
     // UI
     setAuthMode,
     setCurrentView,
+    setView,
     selectBoard,
     selectCard,
+    setSelectedCardId,
     clearError,
     
     // Drag & Drop
     handleDragEnd,
   };
+}
+
+// Provider component
+export function TasklyProvider({ children }: { children: React.ReactNode }) {
+  const taskly = useTaskly();
+
+  return (
+    <TasklyContext.Provider value={taskly}>
+      {children}
+    </TasklyContext.Provider>
+  );
+}
+
+// Hook to use the context
+export function useTasklyContext(): TasklyContextType {
+  const context = useContext(TasklyContext);
+  if (!context) {
+    throw new Error('useTasklyContext must be used within a TasklyProvider');
+  }
+  return context;
 }
