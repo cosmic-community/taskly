@@ -5,44 +5,43 @@ import { useTaskly } from '@/lib/hooks';
 import AuthPanel from '@/components/AuthPanel';
 import BoardsPanel from '@/components/BoardsPanel';
 import BoardPanel from '@/components/BoardPanel';
-import CardModal from '@/components/CardModal';
 
-export default function HomePage() {
+export default function Home() {
   const taskly = useTaskly();
 
-  // Try to authenticate with stored token on mount
   useEffect(() => {
-    const token = localStorage.getItem('taskly_token');
-    if (token && !taskly.user) {
-      taskly.authenticateWithToken(token);
+    // Try to authenticate with stored token
+    if (taskly.user) {
+      taskly.authenticateWithToken();
     }
-  }, [taskly]);
+  }, []);
 
-  // Render based on current view
+  // Show loading state during initial auth check
+  if (taskly.isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show auth panel if no user
+  if (!taskly.user) {
+    return <AuthPanel />;
+  }
+
+  // Show appropriate panel based on current view
   switch (taskly.uiState.currentView) {
-    case 'auth':
-      return <AuthPanel />;
-      
-    case 'boards':
-      return <BoardsPanel />;
-      
     case 'board':
+      if (taskly.selectedCard) {
+        return <BoardPanel />;
+      }
       return <BoardPanel />;
-      
-    case 'card':
-      return (
-        <>
-          <BoardPanel />
-          {taskly.selectedCard && (
-            <CardModal 
-              cardId={taskly.selectedCard.id} 
-              onClose={() => taskly.selectCard(null)}
-            />
-          )}
-        </>
-      );
-      
+    case 'boards':
     default:
-      return <AuthPanel />;
+      return <BoardsPanel />;
   }
 }

@@ -1,349 +1,267 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { 
-  ArrowLeft, 
-  Plus, 
-  Settings, 
-  Archive, 
-  Trash2, 
-  Edit3,
-  MoreHorizontal,
-  Users,
-  Calendar,
-  Filter,
-  Search,
-  Grid3x3,
-  List,
-  Eye,
-  EyeOff
-} from 'lucide-react';
-import { useTaskly } from '@/lib/hooks';
-import Column from './Column';
-import { 
+import { useEffect, useState } from 'react';
+import {
   DndContext,
   DragOverlay,
-  PointerSensor,
   useSensor,
   useSensors,
-  closestCorners,
+  PointerSensor,
+  KeyboardSensor,
   DragStartEvent,
   DragEndEvent,
-  DragOverEvent
+  DragOverEvent,
+  closestCorners,
+  rectIntersection,
+  pointerWithin,
 } from '@dnd-kit/core';
-import { arrayMove, SortableContext, horizontalListSortingStrategy } from '@dnd-kit/sortable';
+import { Grid3X3, Settings, Archive, Star, Users, Clock, Plus, ArrowLeft } from 'lucide-react';
+import { arrayMove } from '@dnd-kit/sortable';
+import { useTaskly } from '@/lib/hooks';
+import { Card as CardType, Column as ColumnType, DragData } from '@/types';
+import Column from './Column';
 import CardDragOverlay from './CardDragOverlay';
 import ColumnDragOverlay from './ColumnDragOverlay';
-import { Card, Column as ColumnType } from '@/types';
+import CardModal from './CardModal';
 
 export default function BoardPanel() {
   const taskly = useTaskly();
-  const [isAddingColumn, setIsAddingColumn] = useState(false);
-  const [newColumnTitle, setNewColumnTitle] = useState('');
-  const [draggedCard, setDraggedCard] = useState<Card | null>(null);
+  const [draggedCard, setDraggedCard] = useState<CardType | null>(null);
   const [draggedColumn, setDraggedColumn] = useState<ColumnType | null>(null);
-  const [isEditingTitle, setIsEditingTitle] = useState(false);
-  const [editTitle, setEditTitle] = useState('');
-  const [showArchived, setShowArchived] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [viewMode, setViewMode] = useState<'board' | 'list'>('board');
-  
+  const [newColumnTitle, setNewColumnTitle] = useState('');
+  const [showNewColumn, setShowNewColumn] = useState(false);
+
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 8,
+        distance: 3,
       },
-    })
+    }),
+    useSensor(KeyboardSensor)
   );
 
-  // Load board data when board is selected
+  // Get selected board and its data
+  const selectedBoard = taskly.getSelectedBoard();
+  const user = taskly.user;
+
   useEffect(() => {
-    if (taskly.currentBoard && taskly.user) {
-      taskly.loadBoards();
+    if (selectedBoard && user) {
+      const boardId = selectedBoard.id;
+      taskly.loadColumns(boardId);
+      taskly.loadCards(boardId);
     }
-  }, [taskly.currentBoard?.id, taskly.user]);
+  }, [selectedBoard?.id, user?.id]);
 
-  // Get current board data
-  const currentBoard = taskly.currentBoard;
-  const boardColumns = taskly.appState.columns
-    .filter(col => col.boardId === currentBoard?.id)
-    .sort((a, b) => a.order - b.order);
-  
-  const boardCards = taskly.appState.cards
-    .filter(card => card.boardId === currentBoard?.id)
-    .filter(card => showArchived || !card.isArchived)
-    .filter(card => !searchQuery || 
-      card.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      card.description?.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-
-  if (!currentBoard) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <h2 className="text-xl font-semibold text-foreground mb-2">No board selected</h2>
-          <p className="text-muted-foreground mb-4">Select a board to get started</p>
-          <button
-            onClick={() => taskly.setCurrentView('boards')}
-            className="btn-primary"
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Boards
-          </button>
-        </div>
-      </div>
-    );
+  if (!selectedBoard || !user) {
+    return null;
   }
 
-  const handleAddColumn = async () => {
-    if (!newColumnTitle.trim() || !currentBoard) return;
-    
-    try {
-      await taskly.createColumn(currentBoard.id, newColumnTitle.trim());
-      setNewColumnTitle('');
-      setIsAddingColumn(false);
-    } catch (error) {
-      console.error('Failed to create column:', error);
-    }
-  };
+  const columns = taskly.appState.columns
+    .filter((col: ColumnType) => col.boardId === selectedBoard.id)
+    .sort((a: ColumnType, b: ColumnType) => a.order - b.order);
 
-  const handleUpdateBoardTitle = async () => {
-    if (!editTitle.trim() || !currentBoard) return;
-    
-    try {
-      await taskly.updateBoard(currentBoard.id, { title: editTitle.trim() });
-      setIsEditingTitle(false);
-    } catch (error) {
-      console.error('Failed to update board title:', error);
-    }
-  };
+  const cards = taskly.appState.cards
+    .filter((card: CardType) => card.boardId === selectedBoard.id)
+    .filter((card: CardType) => !card.isArchived)
+    .sort((a: ColumnType, b: ColumnType) => a.order - b.order);
 
   const handleDragStart = (event: DragStartEvent) => {
     const { active } = event;
-    const activeData = active.data.current;
-    
-    if (activeData?.type === 'card') {
-      setDraggedCard(activeData.card);
-    } else if (activeData?.type === 'column') {
-      setDraggedColumn(activeData.column);
+    const dragData = active.data.current as DragData;
+
+    if (dragData?.type === 'card') {
+      setDraggedCard(dragData.card);
+    } else if (dragData?.type === 'column') {
+      setDraggedColumn(dragData.column);
     }
+  };
+
+  const handleDragOver = (event: DragOverEvent) => {
+    // Handle card moving between columns
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
-    
-    setDraggedCard(null);
-    setDraggedColumn(null);
-    
-    if (!over || !currentBoard) return;
 
-    const activeData = active.data.current;
-    const overData = over.data.current;
+    if (!over) return;
+
+    const activeData = active.data.current as DragData;
+    const overData = over.data.current as DragData;
 
     // Handle column reordering
     if (activeData?.type === 'column' && overData?.type === 'column') {
-      const activeIndex = boardColumns.findIndex(col => col.id === active.id);
-      const overIndex = boardColumns.findIndex(col => col.id === over.id);
-      
-      if (activeIndex !== overIndex) {
-        taskly.reorderColumns(currentBoard.id, activeIndex, overIndex);
+      const activeColumnIndex = columns.findIndex((col: ColumnType) => col.id === active.id);
+      const overColumnIndex = columns.findIndex((col: ColumnType) => col.id === over.id);
+
+      if (activeColumnIndex !== overColumnIndex) {
+        const newColumns = arrayMove(columns, activeColumnIndex, overColumnIndex);
+        // Update column orders
+        newColumns.forEach((col: ColumnType, index: number) => {
+          taskly.updateColumn(col.id, { order: index });
+        });
       }
-      return;
     }
 
-    // Handle card movement
+    // Handle card moving
     if (activeData?.type === 'card') {
-      const cardId = active.id as string;
-      const card = boardCards.find(c => c.id === cardId);
+      const card = activeData.card;
       
-      if (!card) return;
-
-      let newColumnId = card.columnId;
-      let newOrder = card.order;
-
-      // Determine new column and position
-      if (overData?.type === 'column') {
-        newColumnId = over.id as string;
-        // Place at the end of the column
-        const cardsInColumn = boardCards.filter(c => c.columnId === newColumnId);
-        newOrder = cardsInColumn.length > 0 ? Math.max(...cardsInColumn.map(c => c.order)) + 1 : 1;
-      } else if (overData?.type === 'card') {
-        const overCard = boardCards.find(c => c.id === over.id);
-        if (overCard) {
-          newColumnId = overCard.columnId;
-          newOrder = overCard.order;
+      if (overData?.type === 'column' || overData?.type === 'column-cards') {
+        const newColumnId = overData.type === 'column' ? overData.column.id : overData.columnId;
+        
+        if (card.columnId !== newColumnId) {
+          taskly.updateCard(card.id, { columnId: newColumnId });
         }
       }
+    }
 
-      // Only update if position changed
-      if (newColumnId !== card.columnId || newOrder !== card.order) {
-        taskly.moveCard(cardId, newColumnId, newOrder);
-      }
+    setDraggedCard(null);
+    setDraggedColumn(null);
+  };
+
+  const handleCreateColumn = async () => {
+    if (newColumnTitle.trim()) {
+      await taskly.createColumn(selectedBoard.id, { title: newColumnTitle.trim() });
+      setNewColumnTitle('');
+      setShowNewColumn(false);
     }
   };
 
+  const handleDeleteColumn = async (columnId: string) => {
+    await taskly.deleteColumn(columnId);
+  };
+
+  const handleCreateCard = async (columnId: string, title: string) => {
+    await taskly.createCard(selectedBoard.id, columnId, { title });
+  };
+
+  const totalCards = cards.length;
+  const completedCards = cards.filter((c: CardType) => {
+    const completedColumn = columns.find((col: ColumnType) => 
+      col.id === c.columnId && 
+      (col.title.toLowerCase().includes('done') || col.title.toLowerCase().includes('complete'))
+    );
+    return completedColumn;
+  }).length;
+
   return (
-    <div className="min-h-screen bg-background">
+    <div className="flex flex-col h-full bg-background">
       {/* Header */}
-      <div className="border-b border-border bg-card/50 backdrop-blur">
-        <div className="max-w-full px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => taskly.selectBoard(null)}
-                className="btn-ghost p-2"
-              >
-                <ArrowLeft className="w-5 h-5" />
-              </button>
-              
-              <div className="flex items-center gap-3">
-                {isEditingTitle ? (
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      value={editTitle}
-                      onChange={(e) => setEditTitle(e.target.value)}
-                      onKeyPress={(e) => e.key === 'Enter' && handleUpdateBoardTitle()}
-                      onBlur={handleUpdateBoardTitle}
-                      className="input-modern text-xl font-bold"
-                      autoFocus
-                    />
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2">
-                    <h1 className="text-2xl font-bold text-foreground">{currentBoard.title}</h1>
-                    <button
-                      onClick={() => {
-                        setEditTitle(currentBoard.title);
-                        setIsEditingTitle(true);
-                      }}
-                      className="btn-ghost p-1"
-                    >
-                      <Edit3 className="w-4 h-4" />
-                    </button>
-                  </div>
-                )}
-              </div>
+      <div className="flex items-center justify-between p-6 border-b border-border/20 bg-card/50">
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => taskly.setCurrentView('boards')}
+            className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <ArrowLeft className="w-5 h-5" />
+            <span>Back to Boards</span>
+          </button>
+          
+          <div className="w-px h-6 bg-border/20" />
+          
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-gradient-primary rounded-lg">
+              <Grid3X3 className="w-5 h-5 text-white" />
             </div>
-
-            <div className="flex items-center gap-3">
-              {/* Search */}
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <input
-                  type="text"
-                  placeholder="Search cards..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 pr-4 py-2 bg-secondary/30 border border-border/20 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/20"
-                />
-              </div>
-
-              {/* View Toggle */}
-              <div className="flex bg-secondary/30 rounded-lg p-1 border border-border/20">
-                <button
-                  onClick={() => setViewMode('board')}
-                  className={`p-2 rounded-md transition-all duration-200 ${
-                    viewMode === 'board' 
-                      ? 'bg-primary text-white shadow-sm' 
-                      : 'text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  <Grid3x3 className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => setViewMode('list')}
-                  className={`p-2 rounded-md transition-all duration-200 ${
-                    viewMode === 'list' 
-                      ? 'bg-primary text-white shadow-sm' 
-                      : 'text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  <List className="w-4 h-4" />
-                </button>
-              </div>
-
-              {/* Show Archived Toggle */}
-              <button
-                onClick={() => setShowArchived(!showArchived)}
-                className={`btn-ghost flex items-center gap-2 ${
-                  showArchived ? 'text-primary' : 'text-muted-foreground'
-                }`}
-              >
-                {showArchived ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-                <span className="text-sm">Archived</span>
-              </button>
-
-              {/* Add Column Button */}
-              <button
-                onClick={() => setIsAddingColumn(true)}
-                className="btn-primary flex items-center gap-2"
-              >
-                <Plus className="w-4 h-4" />
-                Add Column
-              </button>
+            <div>
+              <h1 className="text-xl font-semibold text-foreground">{selectedBoard.title}</h1>
+              <p className="text-sm text-muted-foreground">
+                {totalCards} cards • {completedCards} completed
+              </p>
             </div>
           </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Users className="w-4 h-4" />
+            <span>Personal</span>
+          </div>
+          
+          <button className="p-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-colors">
+            <Star className="w-5 h-5" />
+          </button>
+          
+          <button className="p-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-colors">
+            <Archive className="w-5 h-5" />
+          </button>
+          
+          <button className="p-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-colors">
+            <Settings className="w-5 h-5" />
+          </button>
         </div>
       </div>
 
       {/* Board Content */}
-      <div className="p-6">
+      <div className="flex-1 overflow-hidden">
         <DndContext
           sensors={sensors}
-          collisionDetection={closestCorners}
+          collisionDetection={pointerWithin}
           onDragStart={handleDragStart}
+          onDragOver={handleDragOver}
           onDragEnd={handleDragEnd}
         >
-          <div className="flex gap-6 overflow-x-auto pb-6">
-            <SortableContext 
-              items={boardColumns.map(col => col.id)}
-              strategy={horizontalListSortingStrategy}
-            >
-              {/* Render Columns */}
-              {boardColumns.map((column) => (
-                <Column
-                  key={column.id}
-                  column={column}
-                  cards={boardCards.filter(card => card.columnId === column.id)}
-                />
-              ))}
-            </SortableContext>
+          <div className="flex gap-6 p-6 h-full overflow-x-auto">
+            {/* Existing Columns */}
+            {columns.map((column: ColumnType) => (
+              <Column
+                key={column.id}
+                column={column}
+                cards={cards.filter((card: CardType) => card.columnId === column.id)}
+                onDeleteColumn={handleDeleteColumn}
+                onCreateCard={handleCreateCard}
+              />
+            ))}
 
-            {/* Add Column Form */}
-            {isAddingColumn && (
-              <div className="w-80 flex-shrink-0">
-                <div className="bg-card border border-border rounded-xl p-4">
+            {/* New Column Input */}
+            <div className="flex-shrink-0 w-80">
+              {showNewColumn ? (
+                <div className="bg-card border border-border/20 rounded-xl p-4">
                   <input
                     type="text"
                     value={newColumnTitle}
                     onChange={(e) => setNewColumnTitle(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && handleAddColumn()}
-                    placeholder="Enter column title..."
+                    placeholder="Enter column title"
                     className="input-modern mb-3"
                     autoFocus
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        handleCreateColumn();
+                      } else if (e.key === 'Escape') {
+                        setShowNewColumn(false);
+                        setNewColumnTitle('');
+                      }
+                    }}
                   />
                   <div className="flex gap-2">
                     <button
-                      onClick={handleAddColumn}
+                      onClick={handleCreateColumn}
+                      className="btn-primary text-sm"
                       disabled={!newColumnTitle.trim()}
-                      className="btn-primary flex-1"
                     >
                       Add Column
                     </button>
                     <button
                       onClick={() => {
-                        setIsAddingColumn(false);
+                        setShowNewColumn(false);
                         setNewColumnTitle('');
                       }}
-                      className="btn-ghost px-4"
+                      className="btn-ghost text-sm"
                     >
                       Cancel
                     </button>
                   </div>
                 </div>
-              </div>
-            )}
+              ) : (
+                <button
+                  onClick={() => setShowNewColumn(true)}
+                  className="w-full h-12 bg-card/30 hover:bg-card/50 border-2 border-dashed border-border/30 hover:border-border/50 rounded-xl flex items-center justify-center gap-2 text-muted-foreground hover:text-foreground transition-all group"
+                >
+                  <Plus className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                  <span>Add another column</span>
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Drag Overlays */}
@@ -353,6 +271,9 @@ export default function BoardPanel() {
           </DragOverlay>
         </DndContext>
       </div>
+
+      {/* Card Modal */}
+      {taskly.selectedCard && <CardModal />}
     </div>
   );
 }
