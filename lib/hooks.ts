@@ -1,60 +1,29 @@
 'use client';
 
-import { createContext, useContext, useReducer, useCallback, useEffect, ReactNode } from 'react';
-import { AppState, UIState, User, Board, Column, Card, LoginCredentials, SignUpCredentials, CreateBoardForm, CreateColumnForm, CreateCardForm, EditCardForm, ViewMode } from '@/types';
-import { getUserBoards, createBoard as createBoardApi, updateBoard, deleteBoard, getBoardColumns, createColumn as createColumnApi, updateColumn, deleteColumn, getColumnCards, getBoardCards, createCard as createCardApi, updateCard, deleteCard } from '@/lib/cosmic';
+import { useState, useEffect, useCallback, createContext, useContext } from 'react';
+import { User, Board, Column, Card, AppState, UIState, LoginCredentials, SignUpCredentials, AuthResponse } from '@/types';
+import { 
+  getUserBoards,
+  createBoard as createBoardApi,
+  updateBoard as updateBoardApi,
+  deleteBoard as deleteBoardApi,
+  getBoardColumns,
+  createColumn as createColumnApi,
+  updateColumn as updateColumnApi,
+  deleteColumn as deleteColumnApi,
+  getBoardCards,
+  createCard as createCardApi,
+  updateCard as updateCardApi,
+  deleteCard as deleteCardApi
+} from '@/lib/cosmic';
 
-// Define the complete context interface
-interface TasklyContextType {
-  // State
-  appState: AppState;
-  uiState: UIState;
-  isLoading: boolean;
-  error: string | null;
-  
-  // Computed properties
-  user: User | null;
-  currentView: ViewMode;
-  selectedBoardId: string | null;
-  selectedCardId: string | null;
-  selectedBoard: Board | null;
-  selectedCard: Card | undefined;
-  boards: Board[];
-  columns: Column[];
-  cards: Card[];
-  
-  // Auth methods
-  login: (credentials: LoginCredentials) => Promise<void>;
-  signUp: (credentials: SignUpCredentials) => Promise<void>;
-  logout: () => void;
-  checkAuth: () => Promise<void>;
-  setAuthMode: (mode: 'login' | 'signup') => void;
-  clearError: () => void;
-  
-  // UI methods
-  setCurrentView: (view: ViewMode) => void;
-  setView: (view: ViewMode, boardId?: string, cardId?: string) => void;
-  setSelectedCard: (card: Card | undefined) => void;
-  setSelectedCardId: (cardId: string | null) => void;
-  
-  // Data methods
-  loadBoardData: (boardId: string) => Promise<void>;
-  getBoardById: (boardId: string) => Board | undefined;
-  getCardById: (cardId: string) => Card | undefined;
-  getColumnsByBoardId: (boardId: string) => Column[];
-  getCardsByColumnId: (columnId: string) => Card[];
-  
-  // CRUD operations
-  createBoard: (form: CreateBoardForm) => Promise<void>;
-  createColumn: (form: CreateColumnForm) => Promise<void>;
-  addColumn: (boardId: string, title: string) => Promise<void>;
-  createCard: (form: CreateCardForm) => Promise<void>;
-  addCard: (columnId: string, title: string) => Promise<void>;
-  editCard: (form: EditCardForm) => Promise<void>;
-  moveCard: (cardId: string, columnId: string) => Promise<void>;
-}
+// Storage keys
+const STORAGE_KEYS = {
+  TOKEN: 'taskly_token',
+  USER: 'taskly_user',
+} as const;
 
-// Initial state
+// Initial states
 const initialAppState: AppState = {
   boards: [],
   columns: [],
@@ -69,112 +38,72 @@ const initialUIState: UIState = {
   authMode: 'login',
 };
 
-// Actions
-type Action =
-  | { type: 'SET_LOADING'; payload: boolean }
-  | { type: 'SET_ERROR'; payload: string | null }
-  | { type: 'SET_USER'; payload: User | null }
-  | { type: 'SET_BOARDS'; payload: Board[] }
-  | { type: 'SET_COLUMNS'; payload: Column[] }
-  | { type: 'SET_CARDS'; payload: Card[] }
-  | { type: 'SET_CURRENT_VIEW'; payload: ViewMode }
-  | { type: 'SET_SELECTED_BOARD'; payload: string | null }
-  | { type: 'SET_SELECTED_CARD'; payload: string | null }
-  | { type: 'SET_AUTH_MODE'; payload: 'login' | 'signup' }
-  | { type: 'ADD_BOARD'; payload: Board }
-  | { type: 'ADD_COLUMN'; payload: Column }
-  | { type: 'ADD_CARD'; payload: Card }
-  | { type: 'UPDATE_CARD'; payload: Card };
-
-// Combined state
-interface State {
+// Context interface
+interface TasklyContextType {
+  // App state
   appState: AppState;
   uiState: UIState;
   isLoading: boolean;
   error: string | null;
+
+  // Auth methods
+  login: (credentials: LoginCredentials) => Promise<void>;
+  signUp: (credentials: SignUpCredentials) => Promise<void>;
+  logout: () => void;
+  setAuthMode: (mode: 'login' | 'signup') => void;
+
+  // Board methods
+  loadBoards: () => Promise<void>;
+  createBoard: (title: string) => Promise<void>;
+  updateBoard: (id: string, updates: Partial<Pick<Board, 'title' | 'isArchived' | 'order'>>) => Promise<void>;
+  deleteBoard: (id: string) => Promise<void>;
+  selectBoard: (boardId: string) => void;
+  
+  // Column methods
+  loadColumns: (boardId: string) => Promise<void>;
+  createColumn: (boardId: string, title: string) => Promise<void>;
+  updateColumn: (id: string, updates: Partial<Pick<Column, 'title' | 'order'>>) => Promise<void>;
+  deleteColumn: (id: string) => Promise<void>;
+  
+  // Card methods  
+  loadCards: (boardId: string) => Promise<void>;
+  createCard: (boardId: string, columnId: string, title: string, description?: string) => Promise<void>;
+  updateCard: (id: string, updates: Partial<Pick<Card, 'title' | 'description' | 'labels' | 'dueDate' | 'isArchived' | 'columnId' | 'order'>>) => Promise<void>;
+  deleteCard: (id: string) => Promise<void>;
+  selectCard: (cardId: string | null) => void;
+  
+  // Utility methods
+  clearError: () => void;
+  setView: (view: UIState['currentView']) => void;
 }
 
-const initialState: State = {
-  appState: initialAppState,
-  uiState: initialUIState,
-  isLoading: false,
-  error: null,
-};
+// Create context
+const TasklyContext = createContext<TasklyContextType | null>(null);
 
-// Reducer
-const reducer = (state: State, action: Action): State => {
-  switch (action.type) {
-    case 'SET_LOADING':
-      return { ...state, isLoading: action.payload };
-    case 'SET_ERROR':
-      return { ...state, error: action.payload };
-    case 'SET_USER':
-      return { ...state, appState: { ...state.appState, user: action.payload } };
-    case 'SET_BOARDS':
-      return { ...state, appState: { ...state.appState, boards: action.payload } };
-    case 'SET_COLUMNS':
-      return { ...state, appState: { ...state.appState, columns: action.payload } };
-    case 'SET_CARDS':
-      return { ...state, appState: { ...state.appState, cards: action.payload } };
-    case 'SET_CURRENT_VIEW':
-      return { ...state, uiState: { ...state.uiState, currentView: action.payload } };
-    case 'SET_SELECTED_BOARD':
-      return { ...state, uiState: { ...state.uiState, selectedBoardId: action.payload } };
-    case 'SET_SELECTED_CARD':
-      return { ...state, uiState: { ...state.uiState, selectedCardId: action.payload } };
-    case 'SET_AUTH_MODE':
-      return { ...state, uiState: { ...state.uiState, authMode: action.payload } };
-    case 'ADD_BOARD':
-      return { 
-        ...state, 
-        appState: { 
-          ...state.appState, 
-          boards: [...state.appState.boards, action.payload] 
-        } 
-      };
-    case 'ADD_COLUMN':
-      return { 
-        ...state, 
-        appState: { 
-          ...state.appState, 
-          columns: [...state.appState.columns, action.payload] 
-        } 
-      };
-    case 'ADD_CARD':
-      return { 
-        ...state, 
-        appState: { 
-          ...state.appState, 
-          cards: [...state.appState.cards, action.payload] 
-        } 
-      };
-    case 'UPDATE_CARD':
-      return { 
-        ...state, 
-        appState: { 
-          ...state.appState, 
-          cards: state.appState.cards.map(card => 
-            card.id === action.payload.id ? action.payload : card
-          ) 
-        } 
-      };
-    default:
-      return state;
-  }
-};
+// Provider component
+export function TasklyProvider({ children }: { children: React.ReactNode }) {
+  const [appState, setAppState] = useState<AppState>(initialAppState);
+  const [uiState, setUIState] = useState<UIState>(initialUIState);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-// Context
-const TasklyContext = createContext<TasklyContextType | undefined>(undefined);
+  // Helper to handle API errors
+  const handleApiError = useCallback((error: any, defaultMessage: string) => {
+    console.error(defaultMessage, error);
+    const message = error?.response?.data?.error || error?.message || defaultMessage;
+    setError(message);
+  }, []);
 
-// Provider
-export function TasklyProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(reducer, initialState);
+  // Clear error
+  const clearError = useCallback(() => {
+    setError(null);
+  }, []);
 
-  // Auth functions
+  // Auth methods
   const login = useCallback(async (credentials: LoginCredentials) => {
-    dispatch({ type: 'SET_LOADING', payload: true });
-    dispatch({ type: 'SET_ERROR', payload: null });
-
+    setIsLoading(true);
+    setError(null);
+    
     try {
       const response = await fetch('/api/auth/login', {
         method: 'POST',
@@ -182,38 +111,40 @@ export function TasklyProvider({ children }: { children: ReactNode }) {
         body: JSON.stringify(credentials),
       });
 
-      const data = await response.json();
-
       if (!response.ok) {
-        throw new Error(data.error || 'Login failed');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Login failed');
       }
 
-      // Store token
-      localStorage.setItem('taskly_token', data.token);
+      const authResponse: AuthResponse = await response.json();
       
-      // Set user
-      dispatch({ type: 'SET_USER', payload: data.user });
-      dispatch({ type: 'SET_CURRENT_VIEW', payload: 'boards' });
-
+      // Store auth data
+      localStorage.setItem(STORAGE_KEYS.TOKEN, authResponse.token);
+      localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(authResponse.user));
+      
+      // Update app state
+      setAppState(prev => ({ ...prev, user: authResponse.user }));
+      setUIState(prev => ({ ...prev, currentView: 'boards' }));
+      
       // Load user's boards
-      const boards = await getUserBoards(data.user.id);
-      dispatch({ type: 'SET_BOARDS', payload: boards });
+      await loadBoards();
     } catch (error) {
-      dispatch({ type: 'SET_ERROR', payload: error instanceof Error ? error.message : 'Login failed' });
+      handleApiError(error, 'Failed to login');
     } finally {
-      dispatch({ type: 'SET_LOADING', payload: false });
+      setIsLoading(false);
     }
   }, []);
 
   const signUp = useCallback(async (credentials: SignUpCredentials) => {
+    // Validate passwords match
     if (credentials.password !== credentials.confirmPassword) {
-      dispatch({ type: 'SET_ERROR', payload: 'Passwords do not match' });
+      setError('Passwords do not match');
       return;
     }
 
-    dispatch({ type: 'SET_LOADING', payload: true });
-    dispatch({ type: 'SET_ERROR', payload: null });
-
+    setIsLoading(true);
+    setError(null);
+    
     try {
       const response = await fetch('/api/auth/signup', {
         method: 'POST',
@@ -224,348 +155,352 @@ export function TasklyProvider({ children }: { children: ReactNode }) {
         }),
       });
 
-      const data = await response.json();
-
       if (!response.ok) {
-        throw new Error(data.error || 'Sign up failed');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Sign up failed');
       }
 
-      // Store token
-      localStorage.setItem('taskly_token', data.token);
+      const authResponse: AuthResponse = await response.json();
       
-      // Set user
-      dispatch({ type: 'SET_USER', payload: data.user });
-      dispatch({ type: 'SET_CURRENT_VIEW', payload: 'boards' });
-
-      // Initialize empty boards
-      dispatch({ type: 'SET_BOARDS', payload: [] });
+      // Store auth data
+      localStorage.setItem(STORAGE_KEYS.TOKEN, authResponse.token);
+      localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(authResponse.user));
+      
+      // Update app state
+      setAppState(prev => ({ ...prev, user: authResponse.user }));
+      setUIState(prev => ({ ...prev, currentView: 'boards' }));
+      
+      // Load user's boards (will be empty for new user)
+      await loadBoards();
     } catch (error) {
-      dispatch({ type: 'SET_ERROR', payload: error instanceof Error ? error.message : 'Sign up failed' });
+      handleApiError(error, 'Failed to create account');
     } finally {
-      dispatch({ type: 'SET_LOADING', payload: false });
+      setIsLoading(false);
     }
   }, []);
 
   const logout = useCallback(() => {
-    localStorage.removeItem('taskly_token');
-    dispatch({ type: 'SET_USER', payload: null });
-    dispatch({ type: 'SET_BOARDS', payload: [] });
-    dispatch({ type: 'SET_COLUMNS', payload: [] });
-    dispatch({ type: 'SET_CARDS', payload: [] });
-    dispatch({ type: 'SET_CURRENT_VIEW', payload: 'auth' });
-    dispatch({ type: 'SET_SELECTED_BOARD', payload: null });
-    dispatch({ type: 'SET_SELECTED_CARD', payload: null });
-  }, []);
-
-  const checkAuth = useCallback(async () => {
-    const token = localStorage.getItem('taskly_token');
-    if (!token) {
-      dispatch({ type: 'SET_CURRENT_VIEW', payload: 'auth' });
-      return;
-    }
-
-    try {
-      const response = await fetch('/api/auth/verify', {
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-
-      if (!response.ok) {
-        throw new Error('Token invalid');
-      }
-
-      const data = await response.json();
-      dispatch({ type: 'SET_USER', payload: data.user });
-      dispatch({ type: 'SET_CURRENT_VIEW', payload: 'boards' });
-
-      // Load user's boards
-      const boards = await getUserBoards(data.user.id);
-      dispatch({ type: 'SET_BOARDS', payload: boards });
-    } catch (error) {
-      localStorage.removeItem('taskly_token');
-      dispatch({ type: 'SET_CURRENT_VIEW', payload: 'auth' });
-    }
-  }, []);
-
-  // UI functions
-  const setCurrentView = useCallback((view: ViewMode) => {
-    dispatch({ type: 'SET_CURRENT_VIEW', payload: view });
-  }, []);
-
-  const setView = useCallback((view: ViewMode, boardId?: string, cardId?: string) => {
-    dispatch({ type: 'SET_CURRENT_VIEW', payload: view });
-    if (boardId !== undefined) {
-      dispatch({ type: 'SET_SELECTED_BOARD', payload: boardId });
-    }
-    if (cardId !== undefined) {
-      dispatch({ type: 'SET_SELECTED_CARD', payload: cardId });
-    }
-  }, []);
-
-  const setSelectedCard = useCallback((card: Card | undefined) => {
-    dispatch({ type: 'SET_SELECTED_CARD', payload: card?.id || null });
-  }, []);
-
-  const setSelectedCardId = useCallback((cardId: string | null) => {
-    dispatch({ type: 'SET_SELECTED_CARD', payload: cardId });
+    // Clear storage
+    localStorage.removeItem(STORAGE_KEYS.TOKEN);
+    localStorage.removeItem(STORAGE_KEYS.USER);
+    
+    // Reset state
+    setAppState(initialAppState);
+    setUIState(initialUIState);
+    setError(null);
   }, []);
 
   const setAuthMode = useCallback((mode: 'login' | 'signup') => {
-    dispatch({ type: 'SET_AUTH_MODE', payload: mode });
+    setUIState(prev => ({ ...prev, authMode: mode }));
+    setError(null);
   }, []);
 
-  const clearError = useCallback(() => {
-    dispatch({ type: 'SET_ERROR', payload: null });
-  }, []);
+  // Board methods
+  const loadBoards = useCallback(async () => {
+    if (!appState.user) return;
 
-  // Data loading functions
-  const loadBoardData = useCallback(async (boardId: string) => {
-    dispatch({ type: 'SET_LOADING', payload: true });
-    
+    setIsLoading(true);
     try {
-      const [columns, cards] = await Promise.all([
-        getBoardColumns(boardId),
-        getBoardCards(boardId),
-      ]);
-
-      dispatch({ type: 'SET_COLUMNS', payload: columns });
-      dispatch({ type: 'SET_CARDS', payload: cards });
-      dispatch({ type: 'SET_SELECTED_BOARD', payload: boardId });
+      const boards = await getUserBoards(appState.user.id);
+      setAppState(prev => ({ ...prev, boards }));
     } catch (error) {
-      dispatch({ type: 'SET_ERROR', payload: 'Failed to load board data' });
+      handleApiError(error, 'Failed to load boards');
     } finally {
-      dispatch({ type: 'SET_LOADING', payload: false });
+      setIsLoading(false);
     }
-  }, []);
+  }, [appState.user, handleApiError]);
 
-  // Helper functions
-  const getBoardById = useCallback((boardId: string): Board | undefined => {
-    return state.appState.boards.find(board => board.id === boardId);
-  }, [state.appState.boards]);
+  const createBoard = useCallback(async (title: string) => {
+    if (!appState.user) return;
 
-  const getCardById = useCallback((cardId: string): Card | undefined => {
-    return state.appState.cards.find(card => card.id === cardId);
-  }, [state.appState.cards]);
-
-  const getColumnsByBoardId = useCallback((boardId: string): Column[] => {
-    return state.appState.columns
-      .filter(column => column.boardId === boardId)
-      .sort((a, b) => a.order - b.order);
-  }, [state.appState.columns]);
-
-  const getCardsByColumnId = useCallback((columnId: string): Card[] => {
-    return state.appState.cards
-      .filter(card => card.columnId === columnId && !card.isArchived)
-      .sort((a, b) => a.order - b.order);
-  }, [state.appState.cards]);
-
-  // CRUD operations
-  const createBoard = useCallback(async (form: CreateBoardForm) => {
-    if (!state.appState.user) return;
-
-    dispatch({ type: 'SET_LOADING', payload: true });
-    
+    setIsLoading(true);
     try {
-      const board = await createBoardApi(
-        form.title, 
-        state.appState.user.id,
-        state.appState.boards.length
-      );
-      dispatch({ type: 'ADD_BOARD', payload: board });
+      const order = appState.boards.length;
+      const board = await createBoardApi(title, appState.user.id, order);
+      setAppState(prev => ({
+        ...prev,
+        boards: [...prev.boards, board],
+      }));
     } catch (error) {
-      dispatch({ type: 'SET_ERROR', payload: 'Failed to create board' });
+      handleApiError(error, 'Failed to create board');
     } finally {
-      dispatch({ type: 'SET_LOADING', payload: false });
+      setIsLoading(false);
     }
-  }, [state.appState.user, state.appState.boards.length]);
+  }, [appState.user, appState.boards.length, handleApiError]);
 
-  const createColumn = useCallback(async (form: CreateColumnForm) => {
-    if (!state.uiState.selectedBoardId) return;
-
-    dispatch({ type: 'SET_LOADING', payload: true });
-    
+  const updateBoard = useCallback(async (id: string, updates: Partial<Pick<Board, 'title' | 'isArchived' | 'order'>>) => {
+    setIsLoading(true);
     try {
-      const boardColumns = getColumnsByBoardId(state.uiState.selectedBoardId);
-      const column = await createColumnApi(
-        state.uiState.selectedBoardId,
-        form.title,
-        boardColumns.length
-      );
-      dispatch({ type: 'ADD_COLUMN', payload: column });
+      await updateBoardApi(id, updates);
+      setAppState(prev => ({
+        ...prev,
+        boards: prev.boards.map(board => 
+          board.id === id ? { ...board, ...updates } : board
+        ),
+      }));
     } catch (error) {
-      dispatch({ type: 'SET_ERROR', payload: 'Failed to create column' });
+      handleApiError(error, 'Failed to update board');
     } finally {
-      dispatch({ type: 'SET_LOADING', payload: false });
+      setIsLoading(false);
     }
-  }, [state.uiState.selectedBoardId, getColumnsByBoardId]);
+  }, [handleApiError]);
 
-  const addColumn = useCallback(async (boardId: string, title: string) => {
-    dispatch({ type: 'SET_LOADING', payload: true });
-    
+  const deleteBoard = useCallback(async (id: string) => {
+    setIsLoading(true);
     try {
-      const boardColumns = getColumnsByBoardId(boardId);
-      const column = await createColumnApi(boardId, title, boardColumns.length);
-      dispatch({ type: 'ADD_COLUMN', payload: column });
-    } catch (error) {
-      dispatch({ type: 'SET_ERROR', payload: 'Failed to create column' });
-    } finally {
-      dispatch({ type: 'SET_LOADING', payload: false });
-    }
-  }, [getColumnsByBoardId]);
-
-  const createCard = useCallback(async (form: CreateCardForm) => {
-    // This would need columnId to be added to the form or managed differently
-    // For now, using the selected board's first column
-    const columns = getColumnsByBoardId(state.uiState.selectedBoardId || '');
-    if (!columns.length || !state.uiState.selectedBoardId) return;
-
-    dispatch({ type: 'SET_LOADING', payload: true });
-    
-    try {
-      const columnCards = getCardsByColumnId(columns[0].id);
-      const card = await createCardApi(
-        state.uiState.selectedBoardId,
-        columns[0].id,
-        form.title,
-        form.description,
-        form.labels,
-        form.dueDate,
-        columnCards.length
-      );
-      dispatch({ type: 'ADD_CARD', payload: card });
-    } catch (error) {
-      dispatch({ type: 'SET_ERROR', payload: 'Failed to create card' });
-    } finally {
-      dispatch({ type: 'SET_LOADING', payload: false });
-    }
-  }, [state.uiState.selectedBoardId, getColumnsByBoardId, getCardsByColumnId]);
-
-  const addCard = useCallback(async (columnId: string, title: string) => {
-    const column = state.appState.columns.find(col => col.id === columnId);
-    if (!column) return;
-
-    dispatch({ type: 'SET_LOADING', payload: true });
-    
-    try {
-      const columnCards = getCardsByColumnId(columnId);
-      const card = await createCardApi(
-        column.boardId,
-        columnId,
-        title,
-        '',
-        [],
-        '',
-        columnCards.length
-      );
-      dispatch({ type: 'ADD_CARD', payload: card });
-    } catch (error) {
-      dispatch({ type: 'SET_ERROR', payload: 'Failed to create card' });
-    } finally {
-      dispatch({ type: 'SET_LOADING', payload: false });
-    }
-  }, [state.appState.columns, getCardsByColumnId]);
-
-  const editCard = useCallback(async (form: EditCardForm) => {
-    dispatch({ type: 'SET_LOADING', payload: true });
-    
-    try {
-      await updateCard(form.id, {
-        title: form.title,
-        description: form.description,
-        labels: form.labels,
-        dueDate: form.dueDate,
-      });
+      await deleteBoardApi(id);
+      setAppState(prev => ({
+        ...prev,
+        boards: prev.boards.filter(board => board.id !== id),
+        columns: prev.columns.filter(column => column.boardId !== id),
+        cards: prev.cards.filter(card => card.boardId !== id),
+      }));
       
-      const existingCard = getCardById(form.id);
-      if (existingCard) {
-        const updatedCard = { ...existingCard, ...form };
-        dispatch({ type: 'UPDATE_CARD', payload: updatedCard });
+      // If this was the selected board, go back to boards view
+      if (uiState.selectedBoardId === id) {
+        setUIState(prev => ({
+          ...prev,
+          currentView: 'boards',
+          selectedBoardId: null,
+          selectedCardId: null,
+        }));
       }
     } catch (error) {
-      dispatch({ type: 'SET_ERROR', payload: 'Failed to update card' });
+      handleApiError(error, 'Failed to delete board');
     } finally {
-      dispatch({ type: 'SET_LOADING', payload: false });
+      setIsLoading(false);
     }
-  }, [getCardById]);
+  }, [uiState.selectedBoardId, handleApiError]);
 
-  const moveCard = useCallback(async (cardId: string, columnId: string) => {
-    dispatch({ type: 'SET_LOADING', payload: true });
-    
+  const selectBoard = useCallback((boardId: string) => {
+    setUIState(prev => ({
+      ...prev,
+      currentView: 'board',
+      selectedBoardId: boardId,
+      selectedCardId: null,
+    }));
+  }, []);
+
+  // Column methods
+  const loadColumns = useCallback(async (boardId: string) => {
+    setIsLoading(true);
     try {
-      await updateCard(cardId, { columnId });
+      const columns = await getBoardColumns(boardId);
+      setAppState(prev => ({
+        ...prev,
+        columns: prev.columns.filter(col => col.boardId !== boardId).concat(columns),
+      }));
+    } catch (error) {
+      handleApiError(error, 'Failed to load columns');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [handleApiError]);
+
+  const createColumn = useCallback(async (boardId: string, title: string) => {
+    setIsLoading(true);
+    try {
+      const boardColumns = appState.columns.filter(col => col.boardId === boardId);
+      const order = boardColumns.length;
+      const column = await createColumnApi(boardId, title, order);
+      setAppState(prev => ({
+        ...prev,
+        columns: [...prev.columns, column],
+      }));
+    } catch (error) {
+      handleApiError(error, 'Failed to create column');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [appState.columns, handleApiError]);
+
+  const updateColumn = useCallback(async (id: string, updates: Partial<Pick<Column, 'title' | 'order'>>) => {
+    setIsLoading(true);
+    try {
+      await updateColumnApi(id, updates);
+      setAppState(prev => ({
+        ...prev,
+        columns: prev.columns.map(column => 
+          column.id === id ? { ...column, ...updates } : column
+        ),
+      }));
+    } catch (error) {
+      handleApiError(error, 'Failed to update column');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [handleApiError]);
+
+  const deleteColumn = useCallback(async (id: string) => {
+    setIsLoading(true);
+    try {
+      await deleteColumnApi(id);
+      setAppState(prev => ({
+        ...prev,
+        columns: prev.columns.filter(column => column.id !== id),
+        cards: prev.cards.filter(card => card.columnId !== id),
+      }));
+    } catch (error) {
+      handleApiError(error, 'Failed to delete column');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [handleApiError]);
+
+  // Card methods
+  const loadCards = useCallback(async (boardId: string) => {
+    setIsLoading(true);
+    try {
+      const cards = await getBoardCards(boardId);
+      setAppState(prev => ({
+        ...prev,
+        cards: prev.cards.filter(card => card.boardId !== boardId).concat(cards),
+      }));
+    } catch (error) {
+      handleApiError(error, 'Failed to load cards');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [handleApiError]);
+
+  const createCard = useCallback(async (boardId: string, columnId: string, title: string, description?: string) => {
+    setIsLoading(true);
+    try {
+      const columnCards = appState.cards.filter(card => card.columnId === columnId);
+      const order = columnCards.length;
+      const card = await createCardApi(boardId, columnId, title, description, undefined, undefined, order);
+      setAppState(prev => ({
+        ...prev,
+        cards: [...prev.cards, card],
+      }));
+    } catch (error) {
+      handleApiError(error, 'Failed to create card');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [appState.cards, handleApiError]);
+
+  const updateCard = useCallback(async (id: string, updates: Partial<Pick<Card, 'title' | 'description' | 'labels' | 'dueDate' | 'isArchived' | 'columnId' | 'order'>>) => {
+    setIsLoading(true);
+    try {
+      await updateCardApi(id, updates);
+      setAppState(prev => ({
+        ...prev,
+        cards: prev.cards.map(card => 
+          card.id === id ? { ...card, ...updates } : card
+        ),
+      }));
+    } catch (error) {
+      handleApiError(error, 'Failed to update card');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [handleApiError]);
+
+  const deleteCard = useCallback(async (id: string) => {
+    setIsLoading(true);
+    try {
+      await deleteCardApi(id);
+      setAppState(prev => ({
+        ...prev,
+        cards: prev.cards.filter(card => card.id !== id),
+      }));
       
-      const card = getCardById(cardId);
-      if (card) {
-        const updatedCard = { ...card, columnId };
-        dispatch({ type: 'UPDATE_CARD', payload: updatedCard });
+      // If this was the selected card, clear selection
+      if (uiState.selectedCardId === id) {
+        setUIState(prev => ({ ...prev, selectedCardId: null }));
       }
     } catch (error) {
-      dispatch({ type: 'SET_ERROR', payload: 'Failed to move card' });
+      handleApiError(error, 'Failed to delete card');
     } finally {
-      dispatch({ type: 'SET_LOADING', payload: false });
+      setIsLoading(false);
     }
-  }, [getCardById]);
+  }, [uiState.selectedCardId, handleApiError]);
 
-  // Check auth on mount
+  const selectCard = useCallback((cardId: string | null) => {
+    setUIState(prev => ({ ...prev, selectedCardId: cardId }));
+  }, []);
+
+  // Utility methods
+  const setView = useCallback((view: UIState['currentView']) => {
+    setUIState(prev => ({ ...prev, currentView: view }));
+  }, []);
+
+  // Initialize auth state on mount
   useEffect(() => {
-    checkAuth();
-  }, [checkAuth]);
+    const initializeAuth = async () => {
+      const token = localStorage.getItem(STORAGE_KEYS.TOKEN);
+      const userStr = localStorage.getItem(STORAGE_KEYS.USER);
+      
+      if (token && userStr) {
+        try {
+          // Verify token is still valid
+          const response = await fetch('/api/auth/verify', {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          
+          if (response.ok) {
+            const { user } = await response.json();
+            setAppState(prev => ({ ...prev, user }));
+            setUIState(prev => ({ ...prev, currentView: 'boards' }));
+            return;
+          }
+        } catch (error) {
+          console.error('Auth verification failed:', error);
+        }
+        
+        // Clear invalid auth data
+        localStorage.removeItem(STORAGE_KEYS.TOKEN);
+        localStorage.removeItem(STORAGE_KEYS.USER);
+      }
+      
+      // Not authenticated, show auth panel
+      setUIState(prev => ({ ...prev, currentView: 'auth' }));
+    };
 
-  // Computed properties
-  const selectedBoard = state.uiState.selectedBoardId 
-    ? getBoardById(state.uiState.selectedBoardId) || null 
-    : null;
+    initializeAuth();
+  }, []);
 
-  const selectedCard = state.uiState.selectedCardId 
-    ? getCardById(state.uiState.selectedCardId) 
-    : undefined;
+  // Load boards when user changes
+  useEffect(() => {
+    if (appState.user && uiState.currentView === 'boards') {
+      loadBoards();
+    }
+  }, [appState.user, uiState.currentView, loadBoards]);
+
+  // Load columns and cards when board is selected
+  useEffect(() => {
+    if (uiState.selectedBoardId && uiState.currentView === 'board') {
+      loadColumns(uiState.selectedBoardId);
+      loadCards(uiState.selectedBoardId);
+    }
+  }, [uiState.selectedBoardId, uiState.currentView, loadColumns, loadCards]);
 
   const contextValue: TasklyContextType = {
-    // State
-    appState: state.appState,
-    uiState: state.uiState,
-    isLoading: state.isLoading,
-    error: state.error,
-    
-    // Computed properties
-    user: state.appState.user,
-    currentView: state.uiState.currentView,
-    selectedBoardId: state.uiState.selectedBoardId,
-    selectedCardId: state.uiState.selectedCardId,
-    selectedBoard,
-    selectedCard,
-    boards: state.appState.boards,
-    columns: state.appState.columns,
-    cards: state.appState.cards,
-    
-    // Auth methods
+    appState,
+    uiState,
+    isLoading,
+    error,
     login,
     signUp,
     logout,
-    checkAuth,
     setAuthMode,
-    clearError,
-    
-    // UI methods
-    setCurrentView,
-    setView,
-    setSelectedCard,
-    setSelectedCardId,
-    
-    // Data methods
-    loadBoardData,
-    getBoardById,
-    getCardById,
-    getColumnsByBoardId,
-    getCardsByColumnId,
-    
-    // CRUD operations
+    loadBoards,
     createBoard,
+    updateBoard,
+    deleteBoard,
+    selectBoard,
+    loadColumns,
     createColumn,
-    addColumn,
+    updateColumn,
+    deleteColumn,
+    loadCards,
     createCard,
-    addCard,
-    editCard,
-    moveCard,
+    updateCard,
+    deleteCard,
+    selectCard,
+    clearError,
+    setView,
   };
 
   return (
@@ -575,10 +510,10 @@ export function TasklyProvider({ children }: { children: ReactNode }) {
   );
 }
 
-// Hook
-export function useTaskly(): TasklyContextType {
+// Hook to use the context
+export function useTaskly() {
   const context = useContext(TasklyContext);
-  if (context === undefined) {
+  if (!context) {
     throw new Error('useTaskly must be used within a TasklyProvider');
   }
   return context;
