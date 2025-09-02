@@ -117,6 +117,8 @@ export interface CreateCardForm {
 
 export interface EditCardForm extends CreateCardForm {
   id: string;
+  isArchived?: boolean;
+  columnId?: string;
 }
 
 // Utility types
