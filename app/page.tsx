@@ -7,45 +7,42 @@ import BoardsPanel from '@/components/BoardsPanel';
 import BoardPanel from '@/components/BoardPanel';
 import CardModal from '@/components/CardModal';
 
-export default function Home() {
+export default function HomePage() {
   const taskly = useTaskly();
 
+  // Try to authenticate with stored token on mount
   useEffect(() => {
-    // Try to authenticate with stored token on mount
-    taskly.authenticateWithToken();
-  }, []);
+    const token = localStorage.getItem('taskly_token');
+    if (token && !taskly.user) {
+      taskly.authenticateWithToken(token);
+    }
+  }, [taskly]);
 
-  // Show loading state during initial authentication
-  if (taskly.isLoading && taskly.uiState.currentView === 'auth') {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
-
-  // Show auth panel if not authenticated
-  if (!taskly.user) {
-    return <AuthPanel />;
-  }
-
-  // Main application views
-  if (taskly.uiState.currentView === 'boards') {
-    return <BoardsPanel />;
-  }
-
-  if (taskly.uiState.currentView === 'board' && taskly.uiState.selectedBoardId) {
-    const selectedBoard = taskly.boards.find(board => board.id === taskly.uiState.selectedBoardId);
-    if (selectedBoard) {
+  // Render based on current view
+  switch (taskly.uiState.currentView) {
+    case 'auth':
+      return <AuthPanel />;
+      
+    case 'boards':
+      return <BoardsPanel />;
+      
+    case 'board':
+      return <BoardPanel />;
+      
+    case 'card':
       return (
         <>
-          <BoardPanel board={selectedBoard} />
-          {taskly.uiState.selectedCardId && <CardModal />}
+          <BoardPanel />
+          {taskly.selectedCard && (
+            <CardModal 
+              cardId={taskly.selectedCard.id} 
+              onClose={() => taskly.selectCard(null)}
+            />
+          )}
         </>
       );
-    }
+      
+    default:
+      return <AuthPanel />;
   }
-
-  // Fallback to boards view
-  return <BoardsPanel />;
 }
