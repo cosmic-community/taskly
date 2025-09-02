@@ -191,7 +191,7 @@ export default function BoardPanel() {
     }
   };
 
-  // Get active item for drag overlay - Fix: Add proper null checks
+  // Get active item for drag overlay - Fix: Add proper null checks and only render when items exist
   const activeColumn = activeId ? boardColumns.find(col => col.id === activeId) : null;
   const activeCard = activeId ? boardCards.find(card => card.id === activeId) : null;
 
