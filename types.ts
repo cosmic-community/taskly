@@ -6,10 +6,23 @@ interface BaseEntity {
   order: number;
 }
 
-// Board interface
+// User interface
+export interface User {
+  id: string;
+  title: string;
+  slug: string;
+  metadata: {
+    email: string;
+    password_hash: string;
+    created_at: string;
+  };
+}
+
+// Board interface - now includes user association
 export interface Board extends BaseEntity {
   title: string;
   isArchived: boolean;
+  userId: string; // Associate boards with users
 }
 
 // Column interface
@@ -29,11 +42,29 @@ export interface Card extends BaseEntity {
   isArchived: boolean;
 }
 
-// App state interface
+// App state interface - now includes user
 export interface AppState {
   boards: Board[];
   columns: Column[];
   cards: Card[];
+  user: User | null;
+}
+
+// Authentication interfaces
+export interface AuthResponse {
+  user: User;
+  token: string;
+}
+
+export interface LoginCredentials {
+  email: string;
+  password: string;
+}
+
+export interface SignUpCredentials {
+  email: string;
+  password: string;
+  confirmPassword: string;
 }
 
 // Re-export DndKit types to avoid conflicts
@@ -59,12 +90,13 @@ export interface ColumnCardsDragData {
 export type DragData = CardDragData | ColumnDragData | ColumnCardsDragData;
 
 // UI state types
-export type ViewMode = 'boards' | 'board' | 'card';
+export type ViewMode = 'auth' | 'boards' | 'board' | 'card';
 
 export interface UIState {
   currentView: ViewMode;
   selectedBoardId: string | null;
   selectedCardId: string | null;
+  authMode: 'login' | 'signup';
 }
 
 // Form types
@@ -88,11 +120,11 @@ export interface EditCardForm extends CreateCardForm {
 }
 
 // Utility types
-export type EntityType = 'board' | 'column' | 'card';
+export type EntityType = 'board' | 'column' | 'card' | 'user';
 
 // Storage interface
 export interface StorageService {
-  loadData(): AppState;
-  saveData(data: AppState): void;
+  loadData(): Promise<AppState>;
+  saveData(data: AppState): Promise<void>;
   clearData(): void;
 }

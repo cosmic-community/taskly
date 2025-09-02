@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Plus, Folder, Archive, Sparkles, TrendingUp, Calendar, Users } from 'lucide-react';
+import { Plus, Folder, Archive, Sparkles, TrendingUp, Calendar, Users, LogOut, User } from 'lucide-react';
 import { useTaskly } from '@/lib/hooks';
 
 interface BoardsPanelProps {
@@ -12,12 +12,16 @@ export default function BoardsPanel({ taskly }: BoardsPanelProps) {
   const [isCreating, setIsCreating] = useState(false);
   const [newBoardTitle, setNewBoardTitle] = useState('');
 
-  const handleCreateBoard = () => {
+  const handleCreateBoard = async () => {
     if (newBoardTitle.trim()) {
-      const boardId = taskly.createBoard(newBoardTitle.trim());
-      setNewBoardTitle('');
-      setIsCreating(false);
-      taskly.selectBoard(boardId);
+      try {
+        const boardId = await taskly.createBoard(newBoardTitle.trim());
+        setNewBoardTitle('');
+        setIsCreating(false);
+        taskly.selectBoard(boardId);
+      } catch (error) {
+        console.error('Failed to create board:', error);
+      }
     }
   };
 
@@ -47,22 +51,39 @@ export default function BoardsPanel({ taskly }: BoardsPanelProps) {
                   Taskly
                 </h1>
                 <p className="text-lg text-muted-foreground">
-                  Your beautiful personal kanban workspace
+                  Welcome back, {taskly.appState.user?.metadata.email}
                 </p>
               </div>
               
-              <div className="hidden md:flex items-center gap-6 animate-fade-in delay-200">
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-primary">{taskly.activeBoards.length}</div>
-                  <div className="text-xs text-muted-foreground">Active Boards</div>
+              <div className="flex items-center gap-6">
+                {/* Stats */}
+                <div className="hidden md:flex items-center gap-6 animate-fade-in delay-200">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-primary">{taskly.activeBoards.length}</div>
+                    <div className="text-xs text-muted-foreground">Active Boards</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-accent">{totalCards}</div>
+                    <div className="text-xs text-muted-foreground">Total Tasks</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-success">{completedCards}</div>
+                    <div className="text-xs text-muted-foreground">Completed</div>
+                  </div>
                 </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-accent">{totalCards}</div>
-                  <div className="text-xs text-muted-foreground">Total Tasks</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-success">{completedCards}</div>
-                  <div className="text-xs text-muted-foreground">Completed</div>
+
+                {/* User Menu */}
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-gradient-to-br from-primary/20 to-primary/10 rounded-xl">
+                    <User className="w-5 h-5 text-primary" />
+                  </div>
+                  <button
+                    onClick={taskly.logout}
+                    className="btn-secondary flex items-center gap-2"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    <span>Logout</span>
+                  </button>
                 </div>
               </div>
             </div>

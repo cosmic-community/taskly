@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { DndContext, DragEndEvent, DragStartEvent, DragOverlay, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { useTaskly } from '@/lib/hooks';
+import AuthPanel from '@/components/AuthPanel';
 import BoardsPanel from '@/components/BoardsPanel';
 import BoardPanel from '@/components/BoardPanel';
 import CardModal from '@/components/CardModal';
@@ -107,6 +108,11 @@ export default function TasklyApp() {
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
       </div>
     );
+  }
+
+  // Show auth panel if not authenticated
+  if (!taskly.appState.user) {
+    return <AuthPanel />;
   }
 
   return (
