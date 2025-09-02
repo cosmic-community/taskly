@@ -191,7 +191,7 @@ export default function BoardPanel() {
     }
   };
 
-  // Get active item for drag overlay - Fix: Add null checks before passing to components
+  // Get active item for drag overlay - Fix: Add proper null checks
   const activeColumn = activeId ? boardColumns.find(col => col.id === activeId) : null;
   const activeCard = activeId ? boardCards.find(card => card.id === activeId) : null;
 
@@ -354,10 +354,10 @@ export default function BoardPanel() {
             )}
           </div>
 
-          {/* Drag Overlays - Fix: Only render if items exist */}
+          {/* Drag Overlays - Fix: Only render components when items exist and are defined */}
           <DragOverlay>
-            {activeColumn && <ColumnDragOverlay column={activeColumn} />}
-            {activeCard && <CardDragOverlay card={activeCard} />}
+            {activeColumn ? <ColumnDragOverlay column={activeColumn} /> : null}
+            {activeCard ? <CardDragOverlay card={activeCard} /> : null}
           </DragOverlay>
         </DndContext>
       </div>
