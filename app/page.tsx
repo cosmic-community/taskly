@@ -1,146 +1,102 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { DndContext, DragEndEvent, DragStartEvent, DragOverlay, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { useEffect } from 'react';
 import { useTaskly } from '@/lib/hooks';
 import AuthPanel from '@/components/AuthPanel';
 import BoardsPanel from '@/components/BoardsPanel';
 import BoardPanel from '@/components/BoardPanel';
 import CardModal from '@/components/CardModal';
-import CardDragOverlay from '@/components/CardDragOverlay';
-import ColumnDragOverlay from '@/components/ColumnDragOverlay';
-import { Card, Column, DragData } from '@/types';
 
 export default function TasklyApp() {
   const taskly = useTaskly();
-  const [activeCard, setActiveCard] = useState<Card | null>(null);
-  const [activeColumn, setActiveColumn] = useState<Column | null>(null);
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 8,
-      },
-    })
-  );
+  useEffect(() => {
+    // Check for existing authentication
+    taskly.checkAuth();
+  }, []);
 
-  const handleDragStart = (event: DragStartEvent) => {
-    const { active } = event;
-    const dragData = active.data.current as DragData;
-
-    if (dragData?.type === 'card') {
-      setActiveCard(dragData.card);
-    } else if (dragData?.type === 'column') {
-      setActiveColumn(dragData.column);
-    }
-  };
-
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-    
-    if (!over) {
-      setActiveCard(null);
-      setActiveColumn(null);
-      return;
-    }
-
-    const activeData = active.data.current as DragData;
-    const overData = over.data.current as DragData;
-
-    // Handle card drag
-    if (activeData?.type === 'card') {
-      const card = activeData.card;
-      
-      if (overData?.type === 'column-cards') {
-        // Dropped in a column
-        const newColumnId = overData.columnId;
-        if (card.columnId !== newColumnId) {
-          const targetCards = taskly.getColumnCards(newColumnId);
-          const newOrder = targetCards.length > 0 
-            ? Math.max(...targetCards.map(c => c.order)) + 100
-            : 100;
-          
-          taskly.moveCard(card.id, newColumnId, newOrder);
-        }
-      } else if (overData?.type === 'card') {
-        // Dropped on another card
-        const targetCard = overData.card;
-        if (card.id !== targetCard.id) {
-          const newOrder = targetCard.order;
-          taskly.moveCard(card.id, targetCard.columnId, newOrder);
-        }
-      }
-    }
-
-    // Handle column drag
-    if (activeData?.type === 'column') {
-      const column = activeData.column;
-      
-      if (overData?.type === 'column') {
-        const targetColumn = overData.column;
-        if (column.id !== targetColumn.id) {
-          // Get current column order for the board
-          const boardColumns = taskly.getBoardColumns(column.boardId);
-          const columnIds = boardColumns.map(c => c.id);
-          
-          // Remove the active column and insert it at the target position
-          const filteredIds = columnIds.filter(id => id !== column.id);
-          const targetIndex = filteredIds.indexOf(targetColumn.id);
-          const newColumnIds = [
-            ...filteredIds.slice(0, targetIndex),
-            column.id,
-            ...filteredIds.slice(targetIndex)
-          ];
-          
-          taskly.reorderColumns(column.boardId, newColumnIds);
-        }
-      }
-    }
-
-    setActiveCard(null);
-    setActiveColumn(null);
-  };
-
-  // Show loading state
-  if (!taskly.isLoaded) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
-
-  // Show auth panel if not authenticated
-  if (!taskly.appState.user) {
+  // Show auth panel if no user is logged in
+  if (!taskly.user || taskly.currentView === 'auth') {
     return <AuthPanel />;
   }
 
+  const renderCurrentView = () => {
+    switch (taskly.currentView) {
+      case 'boards':
+        return <BoardsPanel />;
+      case 'board':
+        return <BoardPanel />;
+      default:
+        return <BoardsPanel />;
+    }
+  };
+
   return (
-    <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-      <main className="min-h-screen bg-background">
-        {taskly.uiState.currentView === 'boards' && (
-          <BoardsPanel taskly={taskly} />
-        )}
+    <div className="min-h-screen bg-background">
+      {/* Navigation Header */}
+      <header className="border-b border-border/20 bg-card/50 backdrop-blur-sm sticky top-0 z-40">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+            {/* Logo and Navigation */}
+            <div className="flex items-center gap-6">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-gradient-primary rounded-xl shadow-glow">
+                  <div className="w-6 h-6 bg-white rounded-sm" />
+                </div>
+                <h1 className="text-xl font-bold gradient-text">Taskly</h1>
+              </div>
+              
+              {/* Breadcrumb */}
+              <nav className="hidden sm:flex items-center gap-2 text-sm">
+                <button
+                  onClick={() => taskly.setCurrentView('boards')}
+                  className={`px-3 py-1.5 rounded-lg transition-colors duration-200 ${
+                    taskly.currentView === 'boards'
+                      ? 'bg-primary/10 text-primary font-medium'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-secondary/50'
+                  }`}
+                >
+                  My Boards
+                </button>
+                
+                {taskly.selectedBoardId && (
+                  <>
+                    <span className="text-muted-foreground">/</span>
+                    <span className="text-foreground font-medium">
+                      {taskly.getBoardById(taskly.selectedBoardId)?.title || 'Board'}
+                    </span>
+                  </>
+                )}
+              </nav>
+            </div>
 
-        {taskly.uiState.currentView === 'board' && taskly.selectedBoard && (
-          <BoardPanel taskly={taskly} board={taskly.selectedBoard} />
-        )}
+            {/* User Menu */}
+            <div className="flex items-center gap-4">
+              <div className="hidden sm:flex items-center gap-3 text-sm">
+                <span className="text-muted-foreground">Welcome back,</span>
+                <span className="font-medium text-foreground">
+                  {taskly.user.metadata.email}
+                </span>
+              </div>
+              
+              <button
+                onClick={taskly.logout}
+                className="btn-ghost text-sm px-3 py-2"
+              >
+                Sign Out
+              </button>
+            </div>
+          </div>
+        </div>
+      </header>
 
-        {/* Card Modal */}
-        {taskly.selectedCard && (
-          <CardModal
-            taskly={taskly}
-            card={taskly.selectedCard}
-            onClose={() => taskly.selectCard(null)}
-          />
-        )}
-
-        {/* Drag Overlays */}
-        <DragOverlay>
-          {activeCard && <CardDragOverlay card={activeCard} />}
-          {activeColumn && <ColumnDragOverlay column={activeColumn} />}
-        </DragOverlay>
+      {/* Main Content */}
+      <main className="flex-1">
+        {renderCurrentView()}
       </main>
-    </DndContext>
+
+      {/* Card Modal */}
+      {taskly.selectedCardId && taskly.currentView === 'card' && <CardModal />}
+    </div>
   );
 }

@@ -1,12 +1,21 @@
-'use client';
-
-import { nanoid } from 'nanoid';
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { AppState, UIState, Board, Column, Card, User, ViewMode, AuthResponse, LoginCredentials, SignUpCredentials } from '@/types';
+import type { 
+  AppState, 
+  Board, 
+  Column, 
+  Card, 
+  User, 
+  ViewMode, 
+  UIState, 
+  LoginCredentials, 
+  SignUpCredentials,
+  AuthResponse
+} from '@/types';
 
+// Define the store interface with proper types
 interface TasklyStore extends AppState, UIState {
-  // State flags
+  // Loading and error states
   isLoading: boolean;
   error: string | null;
   
@@ -15,68 +24,66 @@ interface TasklyStore extends AppState, UIState {
   login: (credentials: LoginCredentials) => Promise<void>;
   signUp: (credentials: SignUpCredentials) => Promise<void>;
   logout: () => void;
+  checkAuth: () => Promise<void>;
+  clearError: () => void;
   
   // UI actions
   setCurrentView: (view: ViewMode) => void;
   setSelectedBoardId: (id: string | null) => void;
   setSelectedCardId: (id: string | null) => void;
   setAuthMode: (mode: 'login' | 'signup') => void;
-  clearError: () => void;
   
   // Board actions
-  addBoard: (title: string) => Promise<void>;
-  updateBoard: (id: string, updates: Partial<Board>) => Promise<void>;
-  deleteBoard: (id: string) => Promise<void>;
+  createBoard: (title: string) => Promise<void>;
+  loadBoards: () => Promise<void>;
+  updateBoard: (id: string, updates: Partial<Pick<Board, 'title' | 'isArchived' | 'order'>>) => void;
+  deleteBoard: (id: string) => void;
+  reorderColumns: (boardId: string, columnIds: string[]) => void;
   
   // Column actions
-  addColumn: (boardId: string, title: string) => Promise<void>;
-  updateColumn: (id: string, updates: Partial<Column>) => Promise<void>;
-  deleteColumn: (id: string) => Promise<void>;
-  reorderColumns: (boardId: string, columnIds: string[]) => Promise<void>;
+  addColumn: (boardId: string, title: string) => void;
+  updateColumn: (id: string, updates: Partial<Pick<Column, 'title' | 'order'>>) => void;
+  deleteColumn: (id: string) => void;
   
   // Card actions
-  addCard: (columnId: string, title: string, description?: string) => Promise<void>;
-  updateCard: (id: string, updates: Partial<Card>) => Promise<void>;
-  deleteCard: (id: string) => Promise<void>;
-  moveCard: (cardId: string, toColumnId: string, toPosition?: number) => Promise<void>;
+  addCard: (columnId: string, title: string, description?: string) => void;
+  updateCard: (id: string, updates: Partial<Pick<Card, 'title' | 'description' | 'labels' | 'dueDate' | 'isArchived' | 'columnId' | 'order'>>) => void;
+  deleteCard: (id: string) => void;
+  moveCard: (cardId: string, toColumnId: string, toPosition: number) => void;
   
-  // Data management
-  loadUserData: () => Promise<void>;
-  initializeFromCookie: () => void;
+  // Utility functions
+  getBoardById: (id: string) => Board | undefined;
+  getColumnsByBoardId: (boardId: string) => Column[];
+  getCardsByColumnId: (columnId: string) => Card[];
+  getCardById: (id: string) => Card | undefined;
 }
-
-const initialUIState: UIState = {
-  currentView: 'auth',
-  selectedBoardId: null,
-  selectedCardId: null,
-  authMode: 'login',
-};
-
-const initialAppState: AppState = {
-  boards: [],
-  columns: [],
-  cards: [],
-  user: null,
-};
 
 export const useTaskly = create<TasklyStore>()(
   persist(
     (set, get) => ({
       // Initial state
-      ...initialAppState,
-      ...initialUIState,
+      boards: [],
+      columns: [],
+      cards: [],
+      user: null,
+      currentView: 'auth' as ViewMode,
+      selectedBoardId: null,
+      selectedCardId: null,
+      authMode: 'login' as 'login' | 'signup',
       isLoading: false,
       error: null,
 
       // Auth actions
-      setUser: (user) => {
-        set({ 
-          user,
-          currentView: user ? 'boards' : 'auth'
-        });
+      setUser: (user: User | null) => {
+        set({ user });
+        if (user) {
+          set({ currentView: 'boards' });
+        } else {
+          set({ currentView: 'auth' });
+        }
       },
 
-      login: async (credentials) => {
+      login: async (credentials: LoginCredentials) => {
         set({ isLoading: true, error: null });
         
         try {
@@ -88,16 +95,15 @@ export const useTaskly = create<TasklyStore>()(
             body: JSON.stringify(credentials),
           });
 
-          const data = await response.json();
-
           if (!response.ok) {
-            throw new Error(data.error || 'Login failed');
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Login failed');
           }
 
-          const authResponse = data as AuthResponse;
+          const authResponse: AuthResponse = await response.json();
           
-          // Store token in cookie
-          document.cookie = `auth-token=${authResponse.token}; path=/; max-age=${30 * 24 * 60 * 60}; secure; samesite=strict`;
+          // Store token in localStorage
+          localStorage.setItem('taskly_token', authResponse.token);
           
           set({ 
             user: authResponse.user,
@@ -106,29 +112,26 @@ export const useTaskly = create<TasklyStore>()(
             error: null
           });
 
-          // Load user data
-          await get().loadUserData();
+          // Load user's boards
+          await get().loadBoards();
         } catch (error) {
           set({ 
-            isLoading: false,
+            isLoading: false, 
             error: error instanceof Error ? error.message : 'Login failed'
           });
           throw error;
         }
       },
 
-      signUp: async (credentials) => {
+      signUp: async (credentials: SignUpCredentials) => {
         set({ isLoading: true, error: null });
         
-        if (credentials.password !== credentials.confirmPassword) {
-          set({ 
-            isLoading: false,
-            error: 'Passwords do not match'
-          });
-          return;
-        }
-
         try {
+          // Validate passwords match
+          if (credentials.password !== credentials.confirmPassword) {
+            throw new Error('Passwords do not match');
+          }
+
           const response = await fetch('/api/auth/signup', {
             method: 'POST',
             headers: {
@@ -140,16 +143,15 @@ export const useTaskly = create<TasklyStore>()(
             }),
           });
 
-          const data = await response.json();
-
           if (!response.ok) {
-            throw new Error(data.error || 'Sign up failed');
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Sign up failed');
           }
 
-          const authResponse = data as AuthResponse;
+          const authResponse: AuthResponse = await response.json();
           
-          // Store token in cookie
-          document.cookie = `auth-token=${authResponse.token}; path=/; max-age=${30 * 24 * 60 * 60}; secure; samesite=strict`;
+          // Store token in localStorage
+          localStorage.setItem('taskly_token', authResponse.token);
           
           set({ 
             user: authResponse.user,
@@ -158,11 +160,11 @@ export const useTaskly = create<TasklyStore>()(
             error: null
           });
 
-          // Load user data (will be empty for new users)
-          await get().loadUserData();
+          // Load user's boards (should be empty for new users)
+          await get().loadBoards();
         } catch (error) {
           set({ 
-            isLoading: false,
+            isLoading: false, 
             error: error instanceof Error ? error.message : 'Sign up failed'
           });
           throw error;
@@ -170,241 +172,233 @@ export const useTaskly = create<TasklyStore>()(
       },
 
       logout: () => {
-        // Clear auth cookie
-        document.cookie = 'auth-token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
-        
+        localStorage.removeItem('taskly_token');
         set({
-          ...initialAppState,
-          ...initialUIState,
-          isLoading: false,
-          error: null,
+          user: null,
+          currentView: 'auth',
+          boards: [],
+          columns: [],
+          cards: [],
+          selectedBoardId: null,
+          selectedCardId: null,
         });
       },
 
-      // UI actions
-      setCurrentView: (view) => set({ currentView: view }),
-      setSelectedBoardId: (id) => set({ selectedBoardId: id }),
-      setSelectedCardId: (id) => set({ selectedCardId: id }),
-      setAuthMode: (mode) => set({ authMode: mode }),
-      clearError: () => set({ error: null }),
+      checkAuth: async () => {
+        const token = localStorage.getItem('taskly_token');
+        if (!token) return;
 
-      // Board actions
-      addBoard: async (title) => {
-        const user = get().user;
-        if (!user) return;
+        try {
+          const response = await fetch('/api/auth/verify', {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+            },
+          });
 
-        const newBoard: Board = {
-          id: nanoid(),
-          title,
-          order: get().boards.length,
-          isArchived: false,
-          userId: user.id,
-        };
-
-        set((state) => ({
-          boards: [...state.boards, newBoard]
-        }));
-
-        // TODO: Sync with Cosmic CMS
+          if (response.ok) {
+            const { user } = await response.json();
+            set({ user, currentView: 'boards' });
+            await get().loadBoards();
+          } else {
+            localStorage.removeItem('taskly_token');
+            set({ user: null, currentView: 'auth' });
+          }
+        } catch (error) {
+          localStorage.removeItem('taskly_token');
+          set({ user: null, currentView: 'auth' });
+        }
       },
 
-      updateBoard: async (id, updates) => {
-        set((state) => ({
-          boards: state.boards.map((board) =>
+      clearError: () => set({ error: null }),
+
+      // UI actions
+      setCurrentView: (view: ViewMode) => set({ currentView: view }),
+      setSelectedBoardId: (id: string | null) => set({ selectedBoardId: id }),
+      setSelectedCardId: (id: string | null) => set({ selectedCardId: id }),
+      setAuthMode: (mode: 'login' | 'signup') => set({ authMode: mode }),
+
+      // Board actions
+      createBoard: async (title: string) => {
+        const state = get();
+        if (!state.user) return;
+
+        // Create optimistic board
+        const newBoard: Board = {
+          id: `temp-${Date.now()}`,
+          title,
+          order: state.boards.length,
+          isArchived: false,
+          userId: state.user.id,
+        };
+
+        set((state: TasklyStore) => ({
+          boards: [...state.boards, newBoard],
+        }));
+      },
+
+      loadBoards: async () => {
+        const state = get();
+        if (!state.user) return;
+
+        try {
+          // In a real implementation, this would fetch from the API
+          // For now, we'll keep the boards in local state
+        } catch (error) {
+          console.error('Failed to load boards:', error);
+        }
+      },
+
+      updateBoard: (id: string, updates: Partial<Pick<Board, 'title' | 'isArchived' | 'order'>>) => {
+        set((state: TasklyStore) => ({
+          boards: state.boards.map((board: Board) =>
             board.id === id ? { ...board, ...updates } : board
           ),
         }));
-
-        // TODO: Sync with Cosmic CMS
       },
 
-      deleteBoard: async (id) => {
-        set((state) => ({
-          boards: state.boards.filter((board) => board.id !== id),
-          columns: state.columns.filter((column) => column.boardId !== id),
-          cards: state.cards.filter((card) => card.boardId !== id),
+      deleteBoard: (id: string) => {
+        set((state: TasklyStore) => ({
+          boards: state.boards.filter((board: Board) => board.id !== id),
+          columns: state.columns.filter((column: Column) => column.boardId !== id),
+          cards: state.cards.filter((card: Card) => card.boardId !== id),
         }));
+      },
 
-        // TODO: Sync with Cosmic CMS
+      reorderColumns: (boardId: string, columnIds: string[]) => {
+        set((state: TasklyStore) => ({
+          columns: state.columns.map((column: Column) => {
+            const newOrder = columnIds.indexOf(column.id);
+            return newOrder >= 0 ? { ...column, order: newOrder } : column;
+          }),
+        }));
       },
 
       // Column actions
-      addColumn: async (boardId, title) => {
+      addColumn: (boardId: string, title: string) => {
+        const state = get();
+        const boardColumns = state.columns.filter((col: Column) => col.boardId === boardId);
+        
         const newColumn: Column = {
-          id: nanoid(),
+          id: `temp-${Date.now()}`,
           boardId,
           title,
-          order: get().columns.filter((col) => col.boardId === boardId).length,
+          order: boardColumns.length,
         };
 
-        set((state) => ({
+        set((state: TasklyStore) => ({
           columns: [...state.columns, newColumn],
         }));
-
-        // TODO: Sync with Cosmic CMS
       },
 
-      updateColumn: async (id, updates) => {
-        set((state) => ({
-          columns: state.columns.map((column) =>
+      updateColumn: (id: string, updates: Partial<Pick<Column, 'title' | 'order'>>) => {
+        set((state: TasklyStore) => ({
+          columns: state.columns.map((column: Column) =>
             column.id === id ? { ...column, ...updates } : column
           ),
         }));
-
-        // TODO: Sync with Cosmic CMS
       },
 
-      deleteColumn: async (id) => {
-        set((state) => ({
-          columns: state.columns.filter((column) => column.id !== id),
-          cards: state.cards.filter((card) => card.columnId !== id),
+      deleteColumn: (id: string) => {
+        set((state: TasklyStore) => ({
+          columns: state.columns.filter((column: Column) => column.id !== id),
+          cards: state.cards.filter((card: Card) => card.columnId !== id),
         }));
-
-        // TODO: Sync with Cosmic CMS
-      },
-
-      reorderColumns: async (boardId, columnIds) => {
-        set((state) => ({
-          columns: state.columns.map((column) => {
-            if (column.boardId === boardId) {
-              const newOrder = columnIds.indexOf(column.id);
-              return newOrder !== -1 ? { ...column, order: newOrder } : column;
-            }
-            return column;
-          }),
-        }));
-
-        // TODO: Sync with Cosmic CMS
       },
 
       // Card actions
-      addCard: async (columnId, title, description) => {
-        const column = get().columns.find((col) => col.id === columnId);
+      addCard: (columnId: string, title: string, description?: string) => {
+        const state = get();
+        const columnCards = state.cards.filter((col: Column) => col.boardId === columnId);
+        const column = state.columns.find((col: Column) => col.id === columnId);
+        
         if (!column) return;
 
         const newCard: Card = {
-          id: nanoid(),
+          id: `temp-${Date.now()}`,
           boardId: column.boardId,
           columnId,
           title,
-          description,
-          order: get().cards.filter((card) => card.columnId === columnId).length,
+          description: description || '',
+          order: columnCards.length,
           isArchived: false,
         };
 
-        set((state) => ({
+        set((state: TasklyStore) => ({
           cards: [...state.cards, newCard],
         }));
-
-        // TODO: Sync with Cosmic CMS
       },
 
-      updateCard: async (id, updates) => {
-        set((state) => ({
-          cards: state.cards.map((card) =>
+      updateCard: (id: string, updates: Partial<Pick<Card, 'title' | 'description' | 'labels' | 'dueDate' | 'isArchived' | 'columnId' | 'order'>>) => {
+        set((state: TasklyStore) => ({
+          cards: state.cards.map((card: Card) =>
             card.id === id ? { ...card, ...updates } : card
           ),
         }));
-
-        // TODO: Sync with Cosmic CMS
       },
 
-      deleteCard: async (id) => {
-        set((state) => ({
-          cards: state.cards.filter((card) => card.id !== id),
+      deleteCard: (id: string) => {
+        set((state: TasklyStore) => ({
+          cards: state.cards.filter((card: Card) => card.id !== id),
         }));
-
-        // TODO: Sync with Cosmic CMS
       },
 
-      moveCard: async (cardId, toColumnId, toPosition) => {
+      moveCard: (cardId: string, toColumnId: string, toPosition: number) => {
         const state = get();
-        const card = state.cards.find((c) => c.id === cardId);
+        const card = state.cards.find((c: Card) => c.id === cardId);
         if (!card) return;
 
-        const cardsInTargetColumn = state.cards
-          .filter((c) => c.columnId === toColumnId)
-          .sort((a, b) => a.order - b.order);
+        // Update card's column and position
+        const targetColumnCards = state.cards
+          .filter((c: Card) => c.columnId === toColumnId && c.id !== cardId)
+          .sort((a: Card, b: Card) => a.order - b.order);
 
-        const targetOrder = toPosition !== undefined ? toPosition : cardsInTargetColumn.length;
+        // Reorder cards in the target column
+        targetColumnCards.splice(toPosition, 0, card);
 
-        set((state) => ({
-          cards: state.cards.map((c) => {
+        set((state: TasklyStore) => ({
+          cards: state.cards.map((c: Card) => {
             if (c.id === cardId) {
-              return { ...c, columnId: toColumnId, order: targetOrder };
+              return { ...c, columnId: toColumnId, order: toPosition };
             }
-            
-            // Reorder other cards in the target column
-            if (c.columnId === toColumnId && c.order >= targetOrder) {
-              return { ...c, order: c.order + 1 };
+            if (c.columnId === toColumnId) {
+              const newIndex = targetColumnCards.findIndex((tc: Card) => tc.id === c.id);
+              return newIndex >= 0 ? { ...c, order: newIndex } : c;
             }
-            
             return c;
           }),
         }));
-
-        // TODO: Sync with Cosmic CMS
       },
 
-      // Data management
-      loadUserData: async () => {
-        const user = get().user;
-        if (!user) return;
-
-        set({ isLoading: true });
-
-        try {
-          // TODO: Load data from Cosmic CMS
-          // For now, we'll use empty arrays since no boards exist yet
-          set({
-            boards: [],
-            columns: [],
-            cards: [],
-            isLoading: false,
-          });
-        } catch (error) {
-          console.error('Failed to load user data:', error);
-          set({ 
-            isLoading: false,
-            error: 'Failed to load data'
-          });
-        }
+      // Utility functions
+      getBoardById: (id: string) => {
+        return get().boards.find((board: Board) => board.id === id);
       },
 
-      initializeFromCookie: () => {
-        // Check for auth token in cookie
-        const cookies = document.cookie.split(';');
-        const authToken = cookies
-          .find(cookie => cookie.trim().startsWith('auth-token='))
-          ?.split('=')[1];
+      getColumnsByBoardId: (boardId: string) => {
+        return get().columns
+          .filter((column: Column) => column.boardId === boardId)
+          .sort((a: Column, b: Column) => a.order - b.order);
+      },
 
-        if (authToken) {
-          // Verify token with server
-          fetch('/api/auth/verify', {
-            headers: {
-              'Authorization': `Bearer ${authToken}`,
-            },
-          })
-          .then(response => response.json())
-          .then(data => {
-            if (data.user) {
-              get().setUser(data.user);
-              get().loadUserData();
-            }
-          })
-          .catch(() => {
-            // Token is invalid, clear it
-            get().logout();
-          });
-        }
+      getCardsByColumnId: (columnId: string) => {
+        return get().cards
+          .filter((card: Card) => card.columnId === columnId && !card.isArchived)
+          .sort((a: Card, b: Card) => a.order - b.order);
+      },
+
+      getCardById: (id: string) => {
+        return get().cards.find((card: Card) => card.id === id);
       },
     }),
     {
       name: 'taskly-storage',
       storage: createJSONStorage(() => localStorage),
-      partialize: (state) => ({
-        // Only persist UI state, not app data (which comes from server)
-        authMode: state.authMode,
+      // Only persist data, not UI state
+      partialize: (state: TasklyStore) => ({
+        boards: state.boards,
+        columns: state.columns,
+        cards: state.cards,
+        user: state.user,
       }),
     }
   )
