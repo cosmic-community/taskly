@@ -1,772 +1,589 @@
 'use client';
 
-import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { 
-  AppState, 
-  UIState, 
   User, 
   Board, 
   Column, 
   Card, 
-  AuthResponse,
-  LoginCredentials,
-  SignUpCredentials,
-  ViewMode,
-  DragEndEvent,
-  DragStartEvent,
-  DragData 
+  AppState, 
+  ViewMode, 
+  UIState, 
+  LoginCredentials, 
+  SignUpCredentials, 
+  CreateBoardForm, 
+  CreateColumnForm, 
+  CreateCardForm, 
+  EditCardForm 
 } from '@/types';
 import {
+  getUserByEmail,
+  createUser,
   getUserBoards,
-  createBoard as createBoardApi,
-  updateBoard as updateBoardApi,
-  deleteBoard as deleteBoardApi,
+  createBoard as cosmicCreateBoard,
+  updateBoard as cosmicUpdateBoard,
+  deleteBoard as cosmicDeleteBoard,
   getBoardColumns,
-  createColumn as createColumnApi,
-  updateColumn as updateColumnApi,
-  deleteColumn as deleteColumnApi,
+  createColumn as cosmicCreateColumn,
+  updateColumn as cosmicUpdateColumn,
+  deleteColumn as cosmicDeleteColumn,
+  getColumnCards,
   getBoardCards,
-  createCard as createCardApi,
-  updateCard as updateCardApi,
-  deleteCard as deleteCardApi
+  createCard as cosmicCreateCard,
+  updateCard as cosmicUpdateCard,
+  deleteCard as cosmicDeleteCard,
 } from '@/lib/cosmic';
+import { hashPassword, verifyPassword, generateToken, verifyToken } from '@/lib/auth';
 
-// API functions for authentication
-const loginUser = async (credentials: LoginCredentials): Promise<AuthResponse> => {
-  const response = await fetch('/api/auth/login', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(credentials),
-  });
-
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Login failed');
-  }
-
-  return response.json();
-};
-
-const signUpUser = async (credentials: SignUpCredentials): Promise<AuthResponse> => {
-  if (credentials.password !== credentials.confirmPassword) {
-    throw new Error('Passwords do not match');
-  }
-
-  const response = await fetch('/api/auth/signup', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      email: credentials.email,
-      password: credentials.password,
-    }),
-  });
-
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Sign up failed');
-  }
-
-  return response.json();
-};
-
-const verifyUserToken = async (token: string): Promise<User> => {
-  const response = await fetch('/api/auth/verify', {
-    method: 'GET',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error('Token verification failed');
-  }
-
-  const data = await response.json();
-  return data.user;
-};
-
-// Combined store interface
-interface TasklyStore extends AppState, UIState {
-  // Loading and error states
+export interface TasklyStore {
+  // State
+  user: User | null;
+  boards: Board[];
+  columns: Column[];
+  cards: Card[];
+  uiState: UIState;
   isLoading: boolean;
   error: string | null;
-  
-  // Auth actions
+
+  // Auth methods
   login: (credentials: LoginCredentials) => Promise<void>;
   signUp: (credentials: SignUpCredentials) => Promise<void>;
   logout: () => void;
-  verifyAuth: () => Promise<void>;
-  
-  // UI actions
-  setCurrentView: (view: ViewMode) => void;
-  setSelectedBoardId: (id: string | null) => void;
-  setSelectedCardId: (id: string | null) => void;
+  checkAuth: () => Promise<void>;
+
+  // UI methods
+  setView: (view: ViewMode, boardId?: string, cardId?: string) => void;
   setAuthMode: (mode: 'login' | 'signup') => void;
-  
-  // Error handling
-  setError: (error: string | null) => void;
   clearError: () => void;
-  
-  // Board actions
-  loadBoards: () => Promise<void>;
-  createBoard: (title: string) => Promise<void>;
-  updateBoard: (id: string, updates: Partial<Pick<Board, 'title' | 'isArchived'>>) => Promise<void>;
+
+  // Board methods
+  createBoard: (form: CreateBoardForm) => Promise<Board>;
+  updateBoard: (id: string, updates: Partial<Pick<Board, 'title' | 'isArchived' | 'order'>>) => Promise<void>;
   deleteBoard: (id: string) => Promise<void>;
-  reorderBoards: (boardIds: string[]) => Promise<void>;
-  
-  // Board data loading
-  loadBoardData: (boardId: string) => Promise<void>;
-  
-  // Column actions
-  createColumn: (boardId: string, title: string) => Promise<void>;
-  updateColumn: (id: string, updates: Partial<Pick<Column, 'title'>>) => Promise<void>;
+  getBoardById: (id: string) => Board | undefined;
+
+  // Column methods
+  createColumn: (form: CreateColumnForm & { boardId: string }) => Promise<Column>;
+  updateColumn: (id: string, updates: Partial<Pick<Column, 'title' | 'order'>>) => Promise<void>;
   deleteColumn: (id: string) => Promise<void>;
-  reorderColumns: (boardId: string, columnIds: string[]) => Promise<void>;
-  
-  // Card actions
-  createCard: (boardId: string, columnId: string, title: string, description?: string) => Promise<void>;
-  updateCard: (id: string, updates: Partial<Pick<Card, 'title' | 'description' | 'labels' | 'dueDate' | 'isArchived'>>) => Promise<void>;
+  getColumnsByBoardId: (boardId: string) => Column[];
+  addColumn: (boardId: string, title: string) => Promise<void>;
+
+  // Card methods
+  createCard: (form: CreateCardForm & { boardId: string; columnId: string }) => Promise<Card>;
+  updateCard: (id: string, updates: Partial<EditCardForm>) => Promise<void>;
   deleteCard: (id: string) => Promise<void>;
-  moveCard: (cardId: string, newColumnId: string, newPosition: number) => Promise<void>;
-  reorderCards: (columnId: string, cardIds: string[]) => Promise<void>;
-  
-  // Drag and drop
-  handleDragStart: (event: DragStartEvent) => void;
-  handleDragEnd: (event: DragEndEvent) => Promise<void>;
-  activeDragData: DragData | null;
-  
-  // Utility actions
-  reset: () => void;
+  getCardById: (id: string) => Card | undefined;
+  getCardsByColumnId: (columnId: string) => Card[];
+  addCard: (columnId: string, title: string) => Promise<void>;
+
+  // Data loading
+  loadUserData: () => Promise<void>;
+  refreshData: () => Promise<void>;
 }
 
-// Initial state
-const initialState: AppState & UIState = {
-  // App state
-  boards: [],
-  columns: [],
-  cards: [],
-  user: null,
-  
-  // UI state
-  currentView: 'auth' as ViewMode,
-  selectedBoardId: null,
-  selectedCardId: null,
-  authMode: 'login' as 'login' | 'signup',
-};
+const TasklyContext = createContext<TasklyStore | null>(null);
 
-// Create the store
-export const useTaskly = create<TasklyStore>()(
-  persist(
-    (set, get) => ({
-      // Initial state
-      ...initialState,
+export function TasklyProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<User | null>(null);
+  const [boards, setBoards] = useState<Board[]>([]);
+  const [columns, setColumns] = useState<Column[]>([]);
+  const [cards, setCards] = useState<Card[]>([]);
+  const [uiState, setUiState] = useState<UIState>({
+    currentView: 'auth',
+    selectedBoardId: null,
+    selectedCardId: null,
+    authMode: 'login',
+  });
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Auth methods
+  const login = useCallback(async (credentials: LoginCredentials) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(credentials),
+      });
+
+      const data = await response.json();
       
-      // Loading and error states
-      isLoading: false,
-      error: null,
-      
-      // Drag state
-      activeDragData: null,
-      
-      // Error handling
-      setError: (error: string | null) => {
-        set({ error });
-      },
-      
-      clearError: () => {
-        set({ error: null });
-      },
-      
-      // Auth actions
-      login: async (credentials: LoginCredentials) => {
-        try {
-          set({ isLoading: true, error: null });
-          
-          const authResponse = await loginUser(credentials);
-          
-          set({ 
-            user: authResponse.user,
-            currentView: 'boards',
-            isLoading: false 
-          });
-          
-          // Store token in localStorage
-          localStorage.setItem('taskly_token', authResponse.token);
-          
-          // Load user's boards
-          await get().loadBoards();
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : 'Login failed';
-          set({ error: errorMessage, isLoading: false });
-          throw error;
-        }
-      },
-      
-      signUp: async (credentials: SignUpCredentials) => {
-        try {
-          set({ isLoading: true, error: null });
-          
-          const authResponse = await signUpUser(credentials);
-          
-          set({ 
-            user: authResponse.user,
-            currentView: 'boards',
-            isLoading: false 
-          });
-          
-          // Store token in localStorage
-          localStorage.setItem('taskly_token', authResponse.token);
-          
-          // Load user's boards (will be empty for new users)
-          await get().loadBoards();
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : 'Sign up failed';
-          set({ error: errorMessage, isLoading: false });
-          throw error;
-        }
-      },
-      
-      logout: () => {
-        // Clear token from localStorage
-        localStorage.removeItem('taskly_token');
-        
-        // Reset to initial state
-        set({
-          ...initialState,
-          isLoading: false,
-          error: null,
-          activeDragData: null,
-        });
-      },
-      
-      verifyAuth: async () => {
-        const token = localStorage.getItem('taskly_token');
-        if (!token) {
-          set({ currentView: 'auth' });
-          return;
-        }
-        
-        try {
-          set({ isLoading: true });
-          const user = await verifyUserToken(token);
-          
-          set({ 
-            user,
-            currentView: 'boards',
-            isLoading: false 
-          });
-          
-          // Load user's boards
-          await get().loadBoards();
-        } catch (error) {
-          // Token is invalid, clear it and show auth
-          localStorage.removeItem('taskly_token');
-          set({ 
-            currentView: 'auth',
-            isLoading: false 
-          });
-        }
-      },
-      
-      // UI actions
-      setCurrentView: (view: ViewMode) => {
-        set({ currentView: view });
-      },
-      
-      setSelectedBoardId: (id: string | null) => {
-        set({ selectedBoardId: id });
-      },
-      
-      setSelectedCardId: (id: string | null) => {
-        set({ selectedCardId: id });
-      },
-      
-      setAuthMode: (mode: 'login' | 'signup') => {
-        set({ authMode: mode });
-      },
-      
-      // Board actions
-      loadBoards: async () => {
-        const { user } = get();
-        if (!user) return;
-        
-        try {
-          set({ isLoading: true, error: null });
-          
-          const boards = await getUserBoards(user.id);
-          
-          set({ boards, isLoading: false });
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : 'Failed to load boards';
-          set({ error: errorMessage, isLoading: false });
-        }
-      },
-      
-      createBoard: async (title: string) => {
-        const { user, boards } = get();
-        if (!user) return;
-        
-        try {
-          set({ isLoading: true, error: null });
-          
-          const maxOrder = boards.length > 0 ? Math.max(...boards.map(b => b.order)) : 0;
-          const newBoard = await createBoardApi(title, user.id, maxOrder + 1);
-          
-          set({ 
-            boards: [...boards, newBoard],
-            isLoading: false 
-          });
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : 'Failed to create board';
-          set({ error: errorMessage, isLoading: false });
-          throw error;
-        }
-      },
-      
-      updateBoard: async (id: string, updates: Partial<Pick<Board, 'title' | 'isArchived'>>) => {
-        const { boards } = get();
-        
-        try {
-          set({ isLoading: true, error: null });
-          
-          await updateBoardApi(id, updates);
-          
-          const updatedBoards = boards.map(board => 
-            board.id === id ? { ...board, ...updates } : board
-          );
-          
-          set({ 
-            boards: updatedBoards,
-            isLoading: false 
-          });
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : 'Failed to update board';
-          set({ error: errorMessage, isLoading: false });
-          throw error;
-        }
-      },
-      
-      deleteBoard: async (id: string) => {
-        const { boards, columns, cards } = get();
-        
-        try {
-          set({ isLoading: true, error: null });
-          
-          await deleteBoardApi(id);
-          
-          // Remove board and associated columns/cards
-          const updatedBoards = boards.filter(board => board.id !== id);
-          const updatedColumns = columns.filter(column => column.boardId !== id);
-          const updatedCards = cards.filter(card => card.boardId !== id);
-          
-          set({ 
-            boards: updatedBoards,
-            columns: updatedColumns,
-            cards: updatedCards,
-            isLoading: false 
-          });
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : 'Failed to delete board';
-          set({ error: errorMessage, isLoading: false });
-          throw error;
-        }
-      },
-      
-      reorderBoards: async (boardIds: string[]) => {
-        const { boards } = get();
-        
-        try {
-          // Update local state immediately for better UX
-          const reorderedBoards = boardIds.map((id, index) => {
-            const board = boards.find(b => b.id === id);
-            return board ? { ...board, order: index } : null;
-          }).filter((board): board is Board => board !== null);
-          
-          set({ boards: reorderedBoards });
-          
-          // Update each board's order in the backend
-          await Promise.all(
-            reorderedBoards.map(board => 
-              updateBoardApi(board.id, { order: board.order })
-            )
-          );
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : 'Failed to reorder boards';
-          set({ error: errorMessage });
-          // Reload boards to get correct order
-          await get().loadBoards();
-        }
-      },
-      
-      // Board data loading
-      loadBoardData: async (boardId: string) => {
-        try {
-          set({ isLoading: true, error: null });
-          
-          const [columns, cards] = await Promise.all([
-            getBoardColumns(boardId),
-            getBoardCards(boardId)
-          ]);
-          
-          set({ 
-            columns,
-            cards,
-            selectedBoardId: boardId,
-            currentView: 'board',
-            isLoading: false 
-          });
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : 'Failed to load board data';
-          set({ error: errorMessage, isLoading: false });
-        }
-      },
-      
-      // Column actions
-      createColumn: async (boardId: string, title: string) => {
-        const { columns } = get();
-        
-        try {
-          set({ isLoading: true, error: null });
-          
-          const boardColumns = columns.filter(c => c.boardId === boardId);
-          const maxOrder = boardColumns.length > 0 ? Math.max(...boardColumns.map(c => c.order)) : 0;
-          
-          const newColumn = await createColumnApi(boardId, title, maxOrder + 1);
-          
-          set({ 
-            columns: [...columns, newColumn],
-            isLoading: false 
-          });
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : 'Failed to create column';
-          set({ error: errorMessage, isLoading: false });
-          throw error;
-        }
-      },
-      
-      updateColumn: async (id: string, updates: Partial<Pick<Column, 'title'>>) => {
-        const { columns } = get();
-        
-        try {
-          set({ isLoading: true, error: null });
-          
-          await updateColumnApi(id, updates);
-          
-          const updatedColumns = columns.map(column => 
-            column.id === id ? { ...column, ...updates } : column
-          );
-          
-          set({ 
-            columns: updatedColumns,
-            isLoading: false 
-          });
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : 'Failed to update column';
-          set({ error: errorMessage, isLoading: false });
-          throw error;
-        }
-      },
-      
-      deleteColumn: async (id: string) => {
-        const { columns, cards } = get();
-        
-        try {
-          set({ isLoading: true, error: null });
-          
-          await deleteColumnApi(id);
-          
-          // Remove column and associated cards
-          const updatedColumns = columns.filter(column => column.id !== id);
-          const updatedCards = cards.filter(card => card.columnId !== id);
-          
-          set({ 
-            columns: updatedColumns,
-            cards: updatedCards,
-            isLoading: false 
-          });
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : 'Failed to delete column';
-          set({ error: errorMessage, isLoading: false });
-          throw error;
-        }
-      },
-      
-      reorderColumns: async (boardId: string, columnIds: string[]) => {
-        const { columns } = get();
-        
-        try {
-          // Update local state immediately
-          const updatedColumns = columns.map(column => {
-            if (column.boardId === boardId) {
-              const newOrder = columnIds.indexOf(column.id);
-              return newOrder !== -1 ? { ...column, order: newOrder } : column;
-            }
-            return column;
-          });
-          
-          set({ columns: updatedColumns });
-          
-          // Update backend
-          const columnsToUpdate = updatedColumns.filter(c => 
-            c.boardId === boardId && columnIds.includes(c.id)
-          );
-          
-          await Promise.all(
-            columnsToUpdate.map(column => 
-              updateColumnApi(column.id, { order: column.order })
-            )
-          );
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : 'Failed to reorder columns';
-          set({ error: errorMessage });
-          // Reload board data to get correct order
-          await get().loadBoardData(boardId);
-        }
-      },
-      
-      // Card actions
-      createCard: async (boardId: string, columnId: string, title: string, description?: string) => {
-        const { cards } = get();
-        
-        try {
-          set({ isLoading: true, error: null });
-          
-          const columnCards = cards.filter(c => c.columnId === columnId);
-          const maxOrder = columnCards.length > 0 ? Math.max(...columnCards.map(c => c.order)) : 0;
-          
-          const newCard = await createCardApi(
-            boardId, 
-            columnId, 
-            title, 
-            description, 
-            undefined, 
-            undefined, 
-            maxOrder + 1
-          );
-          
-          set({ 
-            cards: [...cards, newCard],
-            isLoading: false 
-          });
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : 'Failed to create card';
-          set({ error: errorMessage, isLoading: false });
-          throw error;
-        }
-      },
-      
-      updateCard: async (
-        id: string, 
-        updates: Partial<Pick<Card, 'title' | 'description' | 'labels' | 'dueDate' | 'isArchived'>>
-      ) => {
-        const { cards } = get();
-        
-        try {
-          set({ isLoading: true, error: null });
-          
-          await updateCardApi(id, updates);
-          
-          const updatedCards = cards.map(card => 
-            card.id === id ? { ...card, ...updates } : card
-          );
-          
-          set({ 
-            cards: updatedCards,
-            isLoading: false 
-          });
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : 'Failed to update card';
-          set({ error: errorMessage, isLoading: false });
-          throw error;
-        }
-      },
-      
-      deleteCard: async (id: string) => {
-        const { cards } = get();
-        
-        try {
-          set({ isLoading: true, error: null });
-          
-          await deleteCardApi(id);
-          
-          const updatedCards = cards.filter(card => card.id !== id);
-          
-          set({ 
-            cards: updatedCards,
-            isLoading: false 
-          });
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : 'Failed to delete card';
-          set({ error: errorMessage, isLoading: false });
-          throw error;
-        }
-      },
-      
-      moveCard: async (cardId: string, newColumnId: string, newPosition: number) => {
-        const { cards } = get();
-        
-        try {
-          // Update local state immediately for better UX
-          const card = cards.find(c => c.id === cardId);
-          if (!card) return;
-          
-          const updatedCards = cards.map(c => {
-            if (c.id === cardId) {
-              return { ...c, columnId: newColumnId, order: newPosition };
-            }
-            // Update order of other cards in the target column
-            if (c.columnId === newColumnId && c.order >= newPosition) {
-              return { ...c, order: c.order + 1 };
-            }
-            return c;
-          });
-          
-          set({ cards: updatedCards });
-          
-          // Update backend
-          await updateCardApi(cardId, { 
-            columnId: newColumnId, 
-            order: newPosition 
-          });
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : 'Failed to move card';
-          set({ error: errorMessage });
-          // Reload board data to get correct state
-          const { selectedBoardId } = get();
-          if (selectedBoardId) {
-            await get().loadBoardData(selectedBoardId);
-          }
-        }
-      },
-      
-      reorderCards: async (columnId: string, cardIds: string[]) => {
-        const { cards } = get();
-        
-        try {
-          // Update local state immediately
-          const updatedCards = cards.map(card => {
-            if (card.columnId === columnId) {
-              const newOrder = cardIds.indexOf(card.id);
-              return newOrder !== -1 ? { ...card, order: newOrder } : card;
-            }
-            return card;
-          });
-          
-          set({ cards: updatedCards });
-          
-          // Update backend
-          const cardsToUpdate = updatedCards.filter(c => 
-            c.columnId === columnId && cardIds.includes(c.id)
-          );
-          
-          await Promise.all(
-            cardsToUpdate.map(card => 
-              updateCardApi(card.id, { order: card.order })
-            )
-          );
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : 'Failed to reorder cards';
-          set({ error: errorMessage });
-          // Reload board data to get correct order
-          const { selectedBoardId } = get();
-          if (selectedBoardId) {
-            await get().loadBoardData(selectedBoardId);
-          }
-        }
-      },
-      
-      // Drag and drop handlers
-      handleDragStart: (event: DragStartEvent) => {
-        const { active } = event;
-        const dragData = active.data?.current as DragData;
-        
-        set({ activeDragData: dragData });
-      },
-      
-      handleDragEnd: async (event: DragEndEvent) => {
-        const { active, over } = event;
-        
-        set({ activeDragData: null });
-        
-        if (!over) return;
-        
-        const activeData = active.data?.current as DragData;
-        const overData = over.data?.current as DragData;
-        
-        if (!activeData) return;
-        
-        try {
-          // Handle card drag and drop
-          if (activeData.type === 'card') {
-            const activeCard = activeData.card;
-            
-            // Moving card to a column
-            if (overData?.type === 'column') {
-              const targetColumn = overData.column;
-              if (activeCard.columnId !== targetColumn.id) {
-                await get().moveCard(activeCard.id, targetColumn.id, 0);
-              }
-            }
-            // Moving card within column or to another card position
-            else if (overData?.type === 'card') {
-              const targetCard = overData.card;
-              if (activeCard.id !== targetCard.id) {
-                await get().moveCard(activeCard.id, targetCard.columnId, targetCard.order);
-              }
-            }
-          }
-          
-          // Handle column reordering
-          else if (activeData.type === 'column' && overData?.type === 'column') {
-            const activeColumn = activeData.column;
-            const overColumn = overData.column;
-            
-            if (activeColumn.id !== overColumn.id && activeColumn.boardId === overColumn.boardId) {
-              const { columns } = get();
-              const boardColumns = columns.filter(c => c.boardId === activeColumn.boardId);
-              
-              const activeIndex = boardColumns.findIndex(c => c.id === activeColumn.id);
-              const overIndex = boardColumns.findIndex(c => c.id === overColumn.id);
-              
-              if (activeIndex !== -1 && overIndex !== -1) {
-                const reorderedColumns = [...boardColumns];
-                const [movedColumn] = reorderedColumns.splice(activeIndex, 1);
-                reorderedColumns.splice(overIndex, 0, movedColumn);
-                
-                const columnIds = reorderedColumns.map(c => c.id);
-                await get().reorderColumns(activeColumn.boardId, columnIds);
-              }
-            }
-          }
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : 'Drag operation failed';
-          set({ error: errorMessage });
-        }
-      },
-      
-      // Utility actions
-      reset: () => {
-        set({
-          ...initialState,
-          isLoading: false,
-          error: null,
-          activeDragData: null,
-        });
-      },
-    }),
-    {
-      name: 'taskly-store',
-      partialize: (state) => ({
-        // Only persist UI state and user data
-        user: state.user,
-        currentView: state.user ? state.currentView : 'auth',
-        authMode: state.authMode,
-      }),
+      if (!response.ok) {
+        throw new Error(data.error || 'Login failed');
+      }
+
+      setUser(data.user);
+      localStorage.setItem('taskly_token', data.token);
+      setUiState(prev => ({ ...prev, currentView: 'boards' }));
+      await loadUserData();
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Login failed');
+    } finally {
+      setIsLoading(false);
     }
-  )
-);
+  }, []);
+
+  const signUp = useCallback(async (credentials: SignUpCredentials) => {
+    if (credentials.password !== credentials.confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: credentials.email,
+          password: credentials.password,
+        }),
+      });
+
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Sign up failed');
+      }
+
+      setUser(data.user);
+      localStorage.setItem('taskly_token', data.token);
+      setUiState(prev => ({ ...prev, currentView: 'boards' }));
+      await loadUserData();
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Sign up failed');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const logout = useCallback(() => {
+    setUser(null);
+    setBoards([]);
+    setColumns([]);
+    setCards([]);
+    setUiState({
+      currentView: 'auth',
+      selectedBoardId: null,
+      selectedCardId: null,
+      authMode: 'login',
+    });
+    localStorage.removeItem('taskly_token');
+  }, []);
+
+  const checkAuth = useCallback(async () => {
+    const token = localStorage.getItem('taskly_token');
+    if (!token) return;
+
+    try {
+      const response = await fetch('/api/auth/verify', {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setUser(data.user);
+        setUiState(prev => ({ ...prev, currentView: 'boards' }));
+        await loadUserData();
+      } else {
+        localStorage.removeItem('taskly_token');
+      }
+    } catch (error) {
+      localStorage.removeItem('taskly_token');
+    }
+  }, []);
+
+  // UI methods
+  const setView = useCallback((view: ViewMode, boardId?: string, cardId?: string) => {
+    setUiState(prev => ({
+      ...prev,
+      currentView: view,
+      selectedBoardId: boardId || null,
+      selectedCardId: cardId || null,
+    }));
+  }, []);
+
+  const setAuthMode = useCallback((mode: 'login' | 'signup') => {
+    setUiState(prev => ({ ...prev, authMode: mode }));
+  }, []);
+
+  const clearError = useCallback(() => {
+    setError(null);
+  }, []);
+
+  // Board methods
+  const getBoardById = useCallback((id: string): Board | undefined => {
+    return boards.find(board => board.id === id);
+  }, [boards]);
+
+  const createBoard = useCallback(async (form: CreateBoardForm): Promise<Board> => {
+    if (!user) throw new Error('User not authenticated');
+    
+    setIsLoading(true);
+    try {
+      const response = await fetch('/api/boards', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('taskly_token')}`,
+        },
+        body: JSON.stringify(form),
+      });
+
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create board');
+      }
+
+      const newBoard = data.board;
+      setBoards(prev => [...prev, newBoard]);
+      return newBoard;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [user]);
+
+  const updateBoard = useCallback(async (id: string, updates: Partial<Pick<Board, 'title' | 'isArchived' | 'order'>>) => {
+    setIsLoading(true);
+    try {
+      const response = await fetch(`/api/boards/${id}`, {
+        method: 'PUT',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('taskly_token')}`,
+        },
+        body: JSON.stringify(updates),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to update board');
+      }
+
+      setBoards(prev => prev.map(board => 
+        board.id === id ? { ...board, ...updates } : board
+      ));
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const deleteBoard = useCallback(async (id: string) => {
+    setIsLoading(true);
+    try {
+      const response = await fetch(`/api/boards/${id}`, {
+        method: 'DELETE',
+        headers: { 
+          'Authorization': `Bearer ${localStorage.getItem('taskly_token')}`,
+        },
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to delete board');
+      }
+
+      setBoards(prev => prev.filter(board => board.id !== id));
+      setColumns(prev => prev.filter(column => column.boardId !== id));
+      setCards(prev => prev.filter(card => card.boardId !== id));
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  // Column methods
+  const getColumnsByBoardId = useCallback((boardId: string): Column[] => {
+    return columns.filter(column => column.boardId === boardId);
+  }, [columns]);
+
+  const createColumn = useCallback(async (form: CreateColumnForm & { boardId: string }): Promise<Column> => {
+    setIsLoading(true);
+    try {
+      const response = await fetch('/api/columns', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('taskly_token')}`,
+        },
+        body: JSON.stringify(form),
+      });
+
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create column');
+      }
+
+      const newColumn = data.column;
+      setColumns(prev => [...prev, newColumn]);
+      return newColumn;
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const addColumn = useCallback(async (boardId: string, title: string) => {
+    const existingColumns = getColumnsByBoardId(boardId);
+    const order = existingColumns.length;
+    await createColumn({ boardId, title, order });
+  }, [getColumnsByBoardId, createColumn]);
+
+  const updateColumn = useCallback(async (id: string, updates: Partial<Pick<Column, 'title' | 'order'>>) => {
+    setIsLoading(true);
+    try {
+      const response = await fetch(`/api/columns/${id}`, {
+        method: 'PUT',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('taskly_token')}`,
+        },
+        body: JSON.stringify(updates),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to update column');
+      }
+
+      setColumns(prev => prev.map(column => 
+        column.id === id ? { ...column, ...updates } : column
+      ));
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const deleteColumn = useCallback(async (id: string) => {
+    setIsLoading(true);
+    try {
+      const response = await fetch(`/api/columns/${id}`, {
+        method: 'DELETE',
+        headers: { 
+          'Authorization': `Bearer ${localStorage.getItem('taskly_token')}`,
+        },
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to delete column');
+      }
+
+      const column = columns.find(c => c.id === id);
+      if (column) {
+        setColumns(prev => prev.filter(c => c.id !== id));
+        setCards(prev => prev.filter(card => card.columnId !== id));
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  }, [columns]);
+
+  // Card methods
+  const getCardById = useCallback((id: string): Card | undefined => {
+    return cards.find(card => card.id === id);
+  }, [cards]);
+
+  const getCardsByColumnId = useCallback((columnId: string): Card[] => {
+    return cards.filter(card => card.columnId === columnId);
+  }, [cards]);
+
+  const createCard = useCallback(async (form: CreateCardForm & { boardId: string; columnId: string }): Promise<Card> => {
+    setIsLoading(true);
+    try {
+      const response = await fetch('/api/cards', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('taskly_token')}`,
+        },
+        body: JSON.stringify(form),
+      });
+
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create card');
+      }
+
+      const newCard = data.card;
+      setCards(prev => [...prev, newCard]);
+      return newCard;
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const addCard = useCallback(async (columnId: string, title: string) => {
+    const column = columns.find(c => c.id === columnId);
+    if (!column) throw new Error('Column not found');
+    
+    const existingCards = getCardsByColumnId(columnId);
+    const order = existingCards.length;
+    await createCard({ 
+      boardId: column.boardId, 
+      columnId, 
+      title, 
+      order 
+    });
+  }, [columns, getCardsByColumnId, createCard]);
+
+  const updateCard = useCallback(async (id: string, updates: Partial<EditCardForm>) => {
+    setIsLoading(true);
+    try {
+      const response = await fetch(`/api/cards/${id}`, {
+        method: 'PUT',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('taskly_token')}`,
+        },
+        body: JSON.stringify(updates),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to update card');
+      }
+
+      setCards(prev => prev.map(card => 
+        card.id === id ? { ...card, ...updates } : card
+      ));
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const deleteCard = useCallback(async (id: string) => {
+    setIsLoading(true);
+    try {
+      const response = await fetch(`/api/cards/${id}`, {
+        method: 'DELETE',
+        headers: { 
+          'Authorization': `Bearer ${localStorage.getItem('taskly_token')}`,
+        },
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to delete card');
+      }
+
+      setCards(prev => prev.filter(card => card.id !== id));
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  // Data loading
+  const loadUserData = useCallback(async () => {
+    if (!user) return;
+
+    setIsLoading(true);
+    try {
+      // Load boards
+      const userBoards = await getUserBoards(user.id);
+      setBoards(userBoards);
+
+      // Load columns and cards for all boards
+      const allColumns: Column[] = [];
+      const allCards: Card[] = [];
+
+      for (const board of userBoards) {
+        const boardColumns = await getBoardColumns(board.id);
+        allColumns.push(...boardColumns);
+
+        const boardCards = await getBoardCards(board.id);
+        allCards.push(...boardCards);
+      }
+
+      setColumns(allColumns);
+      setCards(allCards);
+    } catch (error) {
+      console.error('Failed to load user data:', error);
+      setError('Failed to load data');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [user]);
+
+  const refreshData = useCallback(async () => {
+    await loadUserData();
+  }, [loadUserData]);
+
+  // Check auth on mount
+  useEffect(() => {
+    checkAuth();
+  }, [checkAuth]);
+
+  // Load user data when user changes
+  useEffect(() => {
+    if (user) {
+      loadUserData();
+    }
+  }, [user, loadUserData]);
+
+  const store: TasklyStore = {
+    // State
+    user,
+    boards,
+    columns,
+    cards,
+    uiState,
+    isLoading,
+    error,
+
+    // Auth methods
+    login,
+    signUp,
+    logout,
+    checkAuth,
+
+    // UI methods
+    setView,
+    setAuthMode,
+    clearError,
+
+    // Board methods
+    createBoard,
+    updateBoard,
+    deleteBoard,
+    getBoardById,
+
+    // Column methods
+    createColumn,
+    updateColumn,
+    deleteColumn,
+    getColumnsByBoardId,
+    addColumn,
+
+    // Card methods
+    createCard,
+    updateCard,
+    deleteCard,
+    getCardById,
+    getCardsByColumnId,
+    addCard,
+
+    // Data loading
+    loadUserData,
+    refreshData,
+  };
+
+  return (
+    <TasklyContext.Provider value={store}>
+      {children}
+    </TasklyContext.Provider>
+  );
+}
+
+export function useTaskly(): TasklyStore {
+  const context = useContext(TasklyContext);
+  if (!context) {
+    throw new Error('useTaskly must be used within a TasklyProvider');
+  }
+  return context;
+}

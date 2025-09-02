@@ -106,6 +106,7 @@ export interface CreateBoardForm {
 
 export interface CreateColumnForm {
   title: string;
+  order?: number;
 }
 
 export interface CreateCardForm {
@@ -113,10 +114,11 @@ export interface CreateCardForm {
   description?: string;
   labels?: string[];
   dueDate?: string;
+  order?: number;
 }
 
 export interface EditCardForm extends CreateCardForm {
-  id: string;
+  id?: string;
   isArchived?: boolean;
   columnId?: string;
 }

@@ -1,135 +1,70 @@
 'use client';
 
 import { useState } from 'react';
-import { Plus, LayoutGrid, User, LogOut, Loader2 } from 'lucide-react';
+import { Plus, Archive, Trash2, Sparkles, FolderKanban, Loader2 } from 'lucide-react';
 import { useTaskly } from '@/lib/hooks';
 import { CreateBoardForm } from '@/types';
 
 export default function BoardsPanel() {
   const taskly = useTaskly();
-  const [showCreateBoard, setShowCreateBoard] = useState(false);
-  const [createBoardForm, setCreateBoardForm] = useState<CreateBoardForm>({
-    title: '',
-  });
-  const [isCreating, setIsCreating] = useState(false);
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [formData, setFormData] = useState<CreateBoardForm>({ title: '' });
 
   const handleCreateBoard = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!createBoardForm.title.trim() || isCreating) return;
+    if (!formData.title.trim()) return;
 
-    setIsCreating(true);
     try {
-      await taskly.createBoard(createBoardForm);
-      setCreateBoardForm({ title: '' });
-      setShowCreateBoard(false);
+      const board = await taskly.createBoard(formData);
+      setFormData({ title: '' });
+      setShowCreateForm(false);
+      taskly.setView('board', board.id);
     } catch (error) {
       console.error('Failed to create board:', error);
-    } finally {
-      setIsCreating(false);
     }
   };
 
-  const handleBoardClick = async (boardId: string) => {
-    taskly.setSelectedBoardId(boardId);
-    await taskly.loadBoardData(boardId);
-    taskly.setView('board');
+  const handleLogout = () => {
+    taskly.logout();
+    taskly.setView('auth');
   };
 
-  // Get stats for the dashboard
-  const totalColumns = taskly.columns.length;
-  const totalCards = taskly.cards.length;
-
-  const activeBoards = taskly.boards.filter(board => !board.isArchived);
-  const userEmail = taskly.user?.metadata.email || '';
+  const visibleBoards = taskly.boards.filter(board => !board.isArchived);
+  const archivedBoards = taskly.boards.filter(board => board.isArchived);
 
   return (
-    <div className="h-screen bg-background flex flex-col">
+    <div className="min-h-screen bg-background">
       {/* Header */}
-      <div className="border-b border-border/20 bg-card/50 backdrop-blur-sm">
-        <div className="flex items-center justify-between p-6">
-          <div className="flex items-center gap-4">
-            <div className="p-2 bg-gradient-primary rounded-lg shadow-glow">
-              <LayoutGrid className="w-6 h-6 text-white" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-foreground">My Boards</h1>
-              <p className="text-muted-foreground">
-                {activeBoards.length} active board{activeBoards.length !== 1 ? 's' : ''}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3">
-            {/* User Info */}
-            <div className="flex items-center gap-3 px-4 py-2 bg-secondary/30 rounded-lg border border-border/20">
-              <div className="p-1.5 bg-primary/10 rounded-full">
-                <User className="w-4 h-4 text-primary" />
+      <div className="border-b border-border/20 glass-light">
+        <div className="max-w-6xl mx-auto px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-gradient-primary rounded-xl shadow-glow">
+                <Sparkles className="w-6 h-6 text-white" />
               </div>
-              <span className="text-sm font-medium text-foreground truncate max-w-32">
-                {userEmail}
-              </span>
+              <div>
+                <h1 className="text-2xl font-bold gradient-text">Taskly</h1>
+                <p className="text-sm text-muted-foreground">Welcome back, {taskly.user?.metadata.email}</p>
+              </div>
             </div>
-
-            {/* Logout Button */}
             <button
-              onClick={taskly.logout}
-              className="flex items-center gap-2 px-4 py-2 text-muted-foreground hover:text-foreground bg-secondary/30 hover:bg-secondary/50 rounded-lg border border-border/20 transition-all duration-200"
+              onClick={handleLogout}
+              className="btn-ghost text-sm"
             >
-              <LogOut className="w-4 h-4" />
-              <span className="text-sm font-medium">Logout</span>
+              Sign Out
             </button>
           </div>
         </div>
       </div>
 
-      {/* Stats Cards */}
-      <div className="p-6 border-b border-border/20">
-        <div className="grid grid-cols-3 gap-4">
-          <div className="glass-light border border-border/20 rounded-xl p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-primary/10 rounded-lg">
-                <LayoutGrid className="w-5 h-5 text-primary" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Boards</p>
-                <p className="text-xl font-semibold text-foreground">{activeBoards.length}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="glass-light border border-border/20 rounded-xl p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-accent/10 rounded-lg">
-                <div className="w-5 h-5 bg-accent rounded border" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Columns</p>
-                <p className="text-xl font-semibold text-foreground">{totalColumns}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="glass-light border border-border/20 rounded-xl p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-success/10 rounded-lg">
-                <div className="w-5 h-5 bg-success rounded-sm border" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Cards</p>
-                <p className="text-xl font-semibold text-foreground">{totalCards}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Boards Grid */}
-      <div className="flex-1 overflow-auto">
-        <div className="p-6">
+      {/* Main Content */}
+      <div className="max-w-6xl mx-auto px-6 py-8">
+        {/* Active Boards Section */}
+        <div className="mb-12">
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-lg font-semibold text-foreground">Recent Boards</h2>
+            <h2 className="text-xl font-semibold text-foreground">Your Boards</h2>
             <button
-              onClick={() => setShowCreateBoard(true)}
+              onClick={() => setShowCreateForm(true)}
               className="btn-primary flex items-center gap-2"
             >
               <Plus className="w-4 h-4" />
@@ -138,66 +73,91 @@ export default function BoardsPanel() {
           </div>
 
           {/* Create Board Form */}
-          {showCreateBoard && (
-            <div className="mb-6 p-4 glass-light border border-border/20 rounded-xl">
-              <form onSubmit={handleCreateBoard} className="space-y-4">
-                <div>
-                  <label htmlFor="boardTitle" className="block text-sm font-medium text-foreground mb-2">
-                    Board Title
-                  </label>
-                  <input
-                    id="boardTitle"
-                    type="text"
-                    value={createBoardForm.title}
-                    onChange={(e) => setCreateBoardForm({ title: e.target.value })}
-                    className="input-modern w-full"
-                    placeholder="Enter board title..."
-                    autoFocus
-                    disabled={isCreating}
-                  />
-                </div>
-                <div className="flex items-center gap-3">
-                  <button
-                    type="submit"
-                    disabled={!createBoardForm.title.trim() || isCreating}
-                    className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                  >
-                    {isCreating ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Plus className="w-4 h-4" />
-                    )}
-                    {isCreating ? 'Creating...' : 'Create Board'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowCreateBoard(false);
-                      setCreateBoardForm({ title: '' });
-                    }}
-                    className="btn-secondary"
-                    disabled={isCreating}
-                  >
-                    Cancel
-                  </button>
-                </div>
+          {showCreateForm && (
+            <div className="glass-light border border-border/20 rounded-xl p-6 mb-6 animate-scale-in">
+              <form onSubmit={handleCreateBoard} className="flex gap-3">
+                <input
+                  type="text"
+                  placeholder="Board title..."
+                  value={formData.title}
+                  onChange={(e) => setFormData({ title: e.target.value })}
+                  className="input-modern flex-1"
+                  autoFocus
+                  disabled={taskly.isLoading}
+                />
+                <button
+                  type="submit"
+                  disabled={!formData.title.trim() || taskly.isLoading}
+                  className="btn-primary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {taskly.isLoading ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Plus className="w-4 h-4" />
+                  )}
+                  Create
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCreateForm(false);
+                    setFormData({ title: '' });
+                  }}
+                  className="btn-ghost"
+                  disabled={taskly.isLoading}
+                >
+                  Cancel
+                </button>
               </form>
             </div>
           )}
 
-          {/* Boards List */}
-          {activeBoards.length === 0 ? (
+          {/* Boards Grid */}
+          {visibleBoards.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {visibleBoards.map((board) => (
+                <div
+                  key={board.id}
+                  onClick={() => taskly.setView('board', board.id)}
+                  className="group glass-light border border-border/20 rounded-xl p-6 hover:shadow-card transition-all duration-300 cursor-pointer"
+                >
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="p-3 bg-gradient-secondary rounded-lg group-hover:scale-110 transition-transform duration-300">
+                      <FolderKanban className="w-6 h-6 text-white" />
+                    </div>
+                    <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          taskly.updateBoard(board.id, { isArchived: true });
+                        }}
+                        className="p-2 text-muted-foreground hover:text-foreground transition-colors duration-200"
+                        title="Archive board"
+                      >
+                        <Archive className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                  <h3 className="font-semibold text-foreground mb-2 group-hover:gradient-text transition-colors duration-300">
+                    {board.title}
+                  </h3>
+                  <div className="flex items-center justify-between text-sm text-muted-foreground">
+                    <span>{taskly.getColumnsByBoardId(board.id).length} lists</span>
+                    <span>{taskly.cards.filter(card => card.boardId === board.id && !card.isArchived).length} cards</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
             <div className="text-center py-12">
-              <div className="p-4 bg-secondary/20 rounded-full w-fit mx-auto mb-4">
-                <LayoutGrid className="w-8 h-8 text-muted-foreground" />
+              <div className="p-4 bg-secondary/20 rounded-2xl w-fit mx-auto mb-4">
+                <FolderKanban className="w-12 h-12 text-muted-foreground" />
               </div>
               <h3 className="text-lg font-medium text-foreground mb-2">No boards yet</h3>
-              <p className="text-muted-foreground mb-6 max-w-md mx-auto">
-                Get started by creating your first board. Organize your tasks and boost your productivity!
-              </p>
-              {!showCreateBoard && (
+              <p className="text-muted-foreground mb-4">Create your first board to get started with Taskly</p>
+              {!showCreateForm && (
                 <button
-                  onClick={() => setShowCreateBoard(true)}
+                  onClick={() => setShowCreateForm(true)}
                   className="btn-primary flex items-center gap-2 mx-auto"
                 >
                   <Plus className="w-4 h-4" />
@@ -205,52 +165,56 @@ export default function BoardsPanel() {
                 </button>
               )}
             </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {activeBoards
-                .sort((a, b) => a.order - b.order)
-                .map((board, index: number) => (
-                  <div
-                    key={board.id}
-                    className="group glass-light border border-border/20 rounded-xl p-6 cursor-pointer transition-all duration-300 hover:shadow-card hover:scale-[1.02] hover:border-primary/20 animate-scale-in"
-                    style={{ animationDelay: `${index * 50}ms` }}
-                    onClick={() => handleBoardClick(board.id)}
-                  >
-                    <div className="flex items-center gap-3 mb-3">
-                      <div className="p-2 bg-gradient-primary rounded-lg shadow-glow group-hover:scale-110 transition-transform duration-300">
-                        <LayoutGrid className="w-5 h-5 text-white" />
-                      </div>
-                      <h3 className="font-semibold text-foreground group-hover:text-primary transition-colors duration-200 truncate flex-1">
-                        {board.title}
-                      </h3>
-                    </div>
-
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">Columns</span>
-                        <span className="font-medium text-foreground">
-                          {taskly.columns.filter(col => col.boardId === board.id).length}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">Cards</span>
-                        <span className="font-medium text-foreground">
-                          {taskly.cards.filter(card => card.boardId === board.id).length}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="mt-4 pt-3 border-t border-border/10">
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <div className="w-2 h-2 bg-success rounded-full" />
-                        <span>Active</span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-            </div>
           )}
         </div>
+
+        {/* Archived Boards Section */}
+        {archivedBoards.length > 0 && (
+          <div>
+            <div className="flex items-center gap-2 mb-6">
+              <Archive className="w-5 h-5 text-muted-foreground" />
+              <h2 className="text-lg font-medium text-muted-foreground">Archived Boards</h2>
+            </div>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {archivedBoards.map((board) => (
+                <div
+                  key={board.id}
+                  className="group glass-dark border border-border/10 rounded-xl p-6"
+                >
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="p-3 bg-secondary/30 rounded-lg">
+                      <FolderKanban className="w-6 h-6 text-muted-foreground" />
+                    </div>
+                    <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex gap-1">
+                      <button
+                        onClick={() => taskly.updateBoard(board.id, { isArchived: false })}
+                        className="p-2 text-muted-foreground hover:text-foreground transition-colors duration-200"
+                        title="Restore board"
+                      >
+                        <Archive className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => taskly.deleteBoard(board.id)}
+                        className="p-2 text-muted-foreground hover:text-destructive transition-colors duration-200"
+                        title="Delete permanently"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                  <h3 className="font-medium text-muted-foreground mb-2">
+                    {board.title}
+                  </h3>
+                  <div className="flex items-center justify-between text-sm text-muted-foreground/70">
+                    <span>{taskly.getColumnsByBoardId(board.id).length} lists</span>
+                    <span>{taskly.cards.filter(card => card.boardId === board.id).length} cards</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

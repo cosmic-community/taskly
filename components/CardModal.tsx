@@ -1,252 +1,372 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { X, Calendar, Tag, User, Clock, Archive, Trash2, Edit3 } from 'lucide-react';
+import { X, Calendar, Tag, Archive, Trash2, Move, Loader2 } from 'lucide-react';
 import { useTaskly } from '@/lib/hooks';
-import type { Card, Column as ColumnType } from '@/types';
+import { Card, EditCardForm } from '@/types';
 
-export default function CardModal() {
+interface CardModalProps {
+  cardId: string;
+  onClose: () => void;
+}
+
+export default function CardModal({ cardId, onClose }: CardModalProps) {
   const taskly = useTaskly();
+  const card = taskly.getCardById(cardId);
+  const [formData, setFormData] = useState<EditCardForm>({
+    title: '',
+    description: '',
+    labels: [],
+    dueDate: '',
+  });
   const [isEditing, setIsEditing] = useState(false);
-  const [editTitle, setEditTitle] = useState('');
-  const [editDescription, setEditDescription] = useState('');
 
-  const card = taskly.selectedCardId ? taskly.getCardById(taskly.selectedCardId) : null;
-  
-  // Find the column and board for context
-  const column = card ? taskly.getColumnsByBoardId(card.boardId).find((c: ColumnType) => c.id === card.columnId) : null;
-  const board = card ? taskly.getBoardById(card.boardId) : null;
+  const columns = card ? taskly.getColumnsByBoardId(card.boardId) : [];
+  const board = card ? taskly.getBoardById(card.boardId) : undefined;
 
   useEffect(() => {
     if (card) {
-      setEditTitle(card.title);
-      setEditDescription(card.description || '');
+      setFormData({
+        title: card.title,
+        description: card.description || '',
+        labels: card.labels || [],
+        dueDate: card.dueDate || '',
+        columnId: card.columnId,
+      });
     }
   }, [card]);
 
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!card || !formData.title.trim()) return;
+
+    try {
+      await taskly.updateCard(card.id, formData);
+      setIsEditing(false);
+    } catch (error) {
+      console.error('Failed to update card:', error);
+    }
+  };
+
+  const handleMoveToColumn = async (columnId: string) => {
+    if (!card) return;
+    
+    try {
+      await taskly.updateCard(card.id, { columnId });
+    } catch (error) {
+      console.error('Failed to move card:', error);
+    }
+  };
+
+  const handleArchive = async () => {
+    if (!card) return;
+    
+    try {
+      await taskly.updateCard(card.id, { isArchived: !card.isArchived });
+    } catch (error) {
+      console.error('Failed to archive card:', error);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!card || !confirm('Are you sure you want to delete this card?')) return;
+    
+    try {
+      await taskly.deleteCard(card.id);
+      onClose();
+    } catch (error) {
+      console.error('Failed to delete card:', error);
+    }
+  };
+
+  const handleAddLabel = (label: string) => {
+    if (!formData.labels?.includes(label)) {
+      setFormData(prev => ({
+        ...prev,
+        labels: [...(prev.labels || []), label],
+      }));
+    }
+  };
+
+  const handleRemoveLabel = (labelToRemove: string) => {
+    setFormData(prev => ({
+      ...prev,
+      labels: prev.labels?.filter(label => label !== labelToRemove) || [],
+    }));
+  };
+
   if (!card) {
-    return null;
+    return (
+      <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center">
+        <div className="text-muted-foreground">Card not found</div>
+      </div>
+    );
   }
 
-  const handleClose = () => {
-    taskly.setSelectedCardId(null);
-    taskly.setCurrentView('board');
-    setIsEditing(false);
-  };
-
-  const handleSave = () => {
-    if (editTitle.trim()) {
-      taskly.updateCard(card.id, {
-        title: editTitle.trim(),
-        description: editDescription.trim(),
-      });
-      setIsEditing(false);
-    }
-  };
-
-  const handleDelete = () => {
-    if (window.confirm('Are you sure you want to delete this card?')) {
-      taskly.deleteCard(card.id);
-      handleClose();
-    }
-  };
-
-  const handleArchive = () => {
-    taskly.updateCard(card.id, { isArchived: !card.isArchived });
-  };
-
-  const availableColumns = board ? taskly.getColumnsByBoardId(board.id) : [];
+  const currentColumn = columns.find(col => col.id === card.columnId);
+  const otherColumns = columns.filter(col => col.id !== card.columnId);
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-start justify-center p-4 pt-16">
-      <div className="bg-card border border-border/20 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-scale-in">
+    <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="glass-light border border-border/20 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-auto shadow-card animate-scale-in">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-border/20">
-          <div className="flex items-center gap-4 flex-1 min-w-0">
-            {isEditing ? (
-              <input
-                type="text"
-                value={editTitle}
-                onChange={(e) => setEditTitle(e.target.value)}
-                className="input-modern flex-1 text-lg font-semibold"
-                placeholder="Card title..."
-                autoFocus
-              />
-            ) : (
-              <div className="flex-1 min-w-0">
-                <h2 className="text-xl font-bold text-foreground truncate">{card.title}</h2>
-                <p className="text-sm text-muted-foreground mt-1">
-                  in "{column?.title}" • {board?.title}
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-gradient-primary rounded-lg">
+              <Tag className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-foreground">
+                {isEditing ? 'Edit Card' : card.title}
+              </h2>
+              {!isEditing && board && currentColumn && (
+                <p className="text-sm text-muted-foreground">
+                  in {currentColumn.title} • {board.title}
                 </p>
-              </div>
-            )}
+              )}
+            </div>
           </div>
-          
-          <div className="flex items-center gap-2 ml-4">
-            {isEditing ? (
-              <>
-                <button onClick={handleSave} className="btn-primary px-3 py-2 text-sm">
-                  Save
-                </button>
-                <button 
-                  onClick={() => setIsEditing(false)} 
-                  className="btn-ghost px-3 py-2 text-sm"
-                >
-                  Cancel
-                </button>
-              </>
-            ) : (
-              <>
-                <button
-                  onClick={() => setIsEditing(true)}
-                  className="btn-ghost p-2"
-                  aria-label="Edit card"
-                >
-                  <Edit3 className="w-5 h-5" />
-                </button>
-                <button
-                  onClick={handleArchive}
-                  className="btn-ghost p-2"
-                  aria-label={card.isArchived ? 'Unarchive card' : 'Archive card'}
-                >
-                  <Archive className="w-5 h-5" />
-                </button>
-                <button
-                  onClick={handleDelete}
-                  className="btn-ghost p-2 text-destructive hover:bg-destructive/10"
-                  aria-label="Delete card"
-                >
-                  <Trash2 className="w-5 h-5" />
-                </button>
-              </>
-            )}
+          <div className="flex items-center gap-2">
             <button
-              onClick={handleClose}
-              className="btn-ghost p-2"
-              aria-label="Close modal"
+              onClick={() => setIsEditing(!isEditing)}
+              className="btn-ghost text-sm"
+            >
+              {isEditing ? 'Cancel' : 'Edit'}
+            </button>
+            <button
+              onClick={onClose}
+              className="p-2 text-muted-foreground hover:text-foreground transition-colors duration-200"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
         </div>
 
-        <div className="p-6 space-y-8">
-          {/* Description */}
-          <div>
-            <div className="flex items-center gap-2 mb-3">
-              <Edit3 className="w-5 h-5 text-muted-foreground" />
-              <h3 className="font-semibold text-foreground">Description</h3>
-            </div>
-            
-            {isEditing ? (
-              <textarea
-                value={editDescription}
-                onChange={(e) => setEditDescription(e.target.value)}
-                className="input-modern min-h-32 resize-none"
-                placeholder="Add a description for this card..."
-                rows={4}
-              />
-            ) : (
-              <div className="bg-secondary/20 border border-border/20 rounded-xl p-4 min-h-32">
-                {card.description ? (
-                  <p className="text-foreground whitespace-pre-wrap">{card.description}</p>
-                ) : (
-                  <p className="text-muted-foreground italic">No description added yet.</p>
+        {/* Content */}
+        <div className="p-6 space-y-6">
+          {isEditing ? (
+            <form onSubmit={handleSubmit} className="space-y-6">
+              {/* Title */}
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">
+                  Title
+                </label>
+                <input
+                  type="text"
+                  value={formData.title}
+                  onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
+                  className="input-modern w-full"
+                  required
+                  disabled={taskly.isLoading}
+                />
+              </div>
+
+              {/* Description */}
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">
+                  Description
+                </label>
+                <textarea
+                  value={formData.description}
+                  onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                  className="input-modern w-full h-24 resize-none"
+                  placeholder="Add a description..."
+                  disabled={taskly.isLoading}
+                />
+              </div>
+
+              {/* Labels */}
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">
+                  Labels
+                </label>
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {formData.labels?.map((label) => (
+                    <span
+                      key={label}
+                      className="inline-flex items-center gap-1 px-3 py-1 bg-accent/20 text-accent text-sm rounded-full"
+                    >
+                      {label}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveLabel(label)}
+                        className="text-accent/60 hover:text-accent"
+                        disabled={taskly.isLoading}
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {['Bug', 'Feature', 'Enhancement', 'Documentation'].map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => handleAddLabel(preset)}
+                      className={`px-3 py-1 text-sm rounded-full border transition-colors duration-200 ${
+                        formData.labels?.includes(preset)
+                          ? 'bg-accent/20 text-accent border-accent/20'
+                          : 'border-border/20 text-muted-foreground hover:text-foreground hover:border-border/40'
+                      }`}
+                      disabled={taskly.isLoading}
+                    >
+                      {preset}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Due Date */}
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">
+                  Due Date
+                </label>
+                <input
+                  type="date"
+                  value={formData.dueDate}
+                  onChange={(e) => setFormData(prev => ({ ...prev, dueDate: e.target.value }))}
+                  className="input-modern"
+                  disabled={taskly.isLoading}
+                />
+              </div>
+
+              {/* Move to Column */}
+              {otherColumns.length > 0 && (
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-2">
+                    Move to Column
+                  </label>
+                  <select
+                    value={formData.columnId || card.columnId}
+                    onChange={(e) => setFormData(prev => ({ ...prev, columnId: e.target.value }))}
+                    className="input-modern"
+                    disabled={taskly.isLoading}
+                  >
+                    {columns.map((column) => (
+                      <option key={column.id} value={column.id}>
+                        {column.title} {column.id === card.columnId ? '(current)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="flex gap-3 pt-4 border-t border-border/20">
+                <button
+                  type="submit"
+                  disabled={!formData.title.trim() || taskly.isLoading}
+                  className="btn-primary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {taskly.isLoading ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Tag className="w-4 h-4" />
+                  )}
+                  Save Changes
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsEditing(false)}
+                  className="btn-ghost"
+                  disabled={taskly.isLoading}
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          ) : (
+            <div className="space-y-6">
+              {/* Description */}
+              {card.description && (
+                <div>
+                  <h3 className="text-sm font-medium text-foreground mb-2">Description</h3>
+                  <div className="text-sm text-muted-foreground whitespace-pre-wrap bg-secondary/10 rounded-lg p-4">
+                    {card.description}
+                  </div>
+                </div>
+              )}
+
+              {/* Labels */}
+              {card.labels && card.labels.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-medium text-foreground mb-2">Labels</h3>
+                  <div className="flex flex-wrap gap-2">
+                    {card.labels.map((label) => (
+                      <span
+                        key={label}
+                        className="px-3 py-1 bg-accent/20 text-accent text-sm rounded-full"
+                      >
+                        {label}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Due Date */}
+              {card.dueDate && (
+                <div>
+                  <h3 className="text-sm font-medium text-foreground mb-2">Due Date</h3>
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Calendar className="w-4 h-4" />
+                    {new Date(card.dueDate).toLocaleDateString()}
+                  </div>
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="flex gap-3 pt-4 border-t border-border/20">
+                {otherColumns.length > 0 && (
+                  <div className="flex items-center gap-2">
+                    <Move className="w-4 h-4 text-muted-foreground" />
+                    <span className="text-sm text-muted-foreground mr-2">Move to:</span>
+                    {otherColumns.map((column) => (
+                      <button
+                        key={column.id}
+                        onClick={() => handleMoveToColumn(column.id)}
+                        className="btn-ghost text-sm"
+                        disabled={taskly.isLoading}
+                      >
+                        {column.title}
+                      </button>
+                    ))}
+                  </div>
                 )}
               </div>
-            )}
-          </div>
 
-          {/* Move Card */}
-          <div>
-            <div className="flex items-center gap-2 mb-3">
-              <User className="w-5 h-5 text-muted-foreground" />
-              <h3 className="font-semibold text-foreground">Move Card</h3>
-            </div>
-            
-            <div className="grid grid-cols-2 gap-3">
-              {availableColumns.map((col: ColumnType) => (
+              <div className="flex gap-3 pt-2">
                 <button
-                  key={col.id}
-                  onClick={() => {
-                    if (col.id !== card.columnId) {
-                      taskly.updateCard(card.id, { columnId: col.id });
-                    }
-                  }}
-                  disabled={col.id === card.columnId}
-                  className={`p-3 rounded-xl border transition-all duration-200 text-left ${
-                    col.id === card.columnId
-                      ? 'border-primary bg-primary/10 text-primary cursor-default'
-                      : 'border-border/20 bg-secondary/20 text-foreground hover:border-primary/50 hover:bg-primary/5'
-                  }`}
+                  onClick={handleArchive}
+                  className="btn-ghost flex items-center gap-2"
+                  disabled={taskly.isLoading}
                 >
-                  <div className="font-medium">{col.title}</div>
-                  <div className="text-xs text-muted-foreground mt-1">
-                    {taskly.getCardsByColumnId(col.id).length} cards
-                  </div>
+                  <Archive className="w-4 h-4" />
+                  {card.isArchived ? 'Restore' : 'Archive'}
                 </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Labels */}
-          {card.labels && card.labels.length > 0 && (
-            <div>
-              <div className="flex items-center gap-2 mb-3">
-                <Tag className="w-5 h-5 text-muted-foreground" />
-                <h3 className="font-semibold text-foreground">Labels</h3>
-              </div>
-              
-              <div className="flex flex-wrap gap-2">
-                {card.labels.map((label: string, index: number) => (
-                  <span
-                    key={index}
-                    className="px-3 py-1.5 bg-accent/20 text-accent border border-accent/20 rounded-lg text-sm font-medium"
-                  >
-                    {label}
-                  </span>
-                ))}
+                <button
+                  onClick={handleDelete}
+                  className="btn-ghost text-destructive hover:text-destructive/80 flex items-center gap-2"
+                  disabled={taskly.isLoading}
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Delete
+                </button>
               </div>
             </div>
           )}
+        </div>
 
-          {/* Due Date */}
-          {card.dueDate && (
-            <div>
-              <div className="flex items-center gap-2 mb-3">
-                <Calendar className="w-5 h-5 text-muted-foreground" />
-                <h3 className="font-semibold text-foreground">Due Date</h3>
-              </div>
-              
-              <div className="p-3 bg-secondary/20 border border-border/20 rounded-xl">
-                <p className="text-foreground">{card.dueDate}</p>
-              </div>
-            </div>
-          )}
-
-          {/* Card Info */}
-          <div>
-            <div className="flex items-center gap-2 mb-3">
-              <Clock className="w-5 h-5 text-muted-foreground" />
-              <h3 className="font-semibold text-foreground">Card Information</h3>
-            </div>
-            
-            <div className="bg-secondary/20 border border-border/20 rounded-xl p-4 space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Card ID:</span>
-                <span className="text-foreground font-mono">{card.id}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Status:</span>
-                <span className={`font-medium ${card.isArchived ? 'text-muted-foreground' : 'text-success'}`}>
-                  {card.isArchived ? 'Archived' : 'Active'}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Position:</span>
-                <span className="text-foreground">{card.order + 1}</span>
-              </div>
-            </div>
+        {/* Card Stats */}
+        <div className="px-6 py-4 bg-secondary/5 border-t border-border/20 rounded-b-2xl">
+          <div className="flex items-center justify-between text-sm text-muted-foreground">
+            <span>
+              Cards in {currentColumn?.title}: {taskly.getCardsByColumnId(card.columnId).length}
+            </span>
+            <span>
+              {card.isArchived ? 'Archived' : 'Active'}
+            </span>
           </div>
         </div>
       </div>
