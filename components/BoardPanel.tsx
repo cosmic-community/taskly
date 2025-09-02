@@ -1,279 +1,358 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import {
-  DndContext,
-  DragOverlay,
-  useSensor,
-  useSensors,
-  PointerSensor,
-  KeyboardSensor,
-  DragStartEvent,
-  DragEndEvent,
-  DragOverEvent,
-  closestCorners,
-  rectIntersection,
-  pointerWithin,
-} from '@dnd-kit/core';
-import { Grid3X3, Settings, Archive, Star, Users, Clock, Plus, ArrowLeft } from 'lucide-react';
-import { arrayMove } from '@dnd-kit/sortable';
+import { useState, useEffect } from 'react';
+import { 
+  ArrowLeft, 
+  Plus, 
+  MoreHorizontal, 
+  Archive, 
+  Trash2, 
+  Edit3, 
+  Grid3x3,
+  Search,
+  Filter,
+  Users,
+  Calendar,
+  Star,
+  Clock,
+  CheckCircle2,
+  AlertCircle,
+  Loader2
+} from 'lucide-react';
+import { DndContext, DragEndEvent, DragStartEvent, DragOverlay, closestCorners, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { SortableContext, horizontalListSortingStrategy } from '@dnd-kit/sortable';
 import { useTaskly } from '@/lib/hooks';
-import { Card as CardType, Column as ColumnType, DragData } from '@/types';
+import { Column as ColumnType, Card, Column } from '@/types';
 import Column from './Column';
+import Card as CardComponent from './Card';
 import CardDragOverlay from './CardDragOverlay';
 import ColumnDragOverlay from './ColumnDragOverlay';
-import CardModal from './CardModal';
 
 export default function BoardPanel() {
   const taskly = useTaskly();
-  const [draggedCard, setDraggedCard] = useState<CardType | null>(null);
-  const [draggedColumn, setDraggedColumn] = useState<ColumnType | null>(null);
+  const [activeCard, setActiveCard] = useState<Card | null>(null);
+  const [activeColumn, setActiveColumn] = useState<ColumnType | null>(null);
+  const [dragType, setDragType] = useState<'card' | 'column' | null>(null);
   const [newColumnTitle, setNewColumnTitle] = useState('');
-  const [showNewColumn, setShowNewColumn] = useState(false);
+  const [isCreatingColumn, setIsCreatingColumn] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [showArchived, setShowArchived] = useState(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 3,
-      },
-    }),
-    useSensor(KeyboardSensor)
+      activationConstraint: { distance: 8 },
+    })
   );
 
-  // Get selected board and its data
-  const selectedBoard = taskly.getSelectedBoard();
-  const user = taskly.user;
+  // Get the selected board
+  const selectedBoard = taskly.appState.boards.find(
+    board => board.id === taskly.uiState.selectedBoardId
+  );
+
+  // Get columns for the selected board
+  const boardColumns = taskly.appState.columns
+    .filter(column => column.boardId === taskly.uiState.selectedBoardId)
+    .sort((a, b) => a.order - b.order);
+
+  // Get cards for the selected board
+  const boardCards = taskly.appState.cards.filter(
+    card => card.boardId === taskly.uiState.selectedBoardId
+  );
+
+  // Filter cards based on search and archived status
+  const filteredCards = boardCards.filter(card => {
+    const matchesSearch = card.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (card.description && card.description.toLowerCase().includes(searchTerm.toLowerCase()));
+    const matchesArchived = showArchived ? card.isArchived : !card.isArchived;
+    return matchesSearch && matchesArchived;
+  });
+
+  // Group cards by column
+  const cardsByColumn = filteredCards.reduce((acc, card) => {
+    if (!acc[card.columnId]) {
+      acc[card.columnId] = [];
+    }
+    acc[card.columnId].push(card);
+    return acc;
+  }, {} as Record<string, Card[]>);
+
+  // Sort cards within each column
+  Object.keys(cardsByColumn).forEach(columnId => {
+    cardsByColumn[columnId].sort((a, b) => a.order - b.order);
+  });
 
   useEffect(() => {
-    if (selectedBoard && user) {
-      const boardId = selectedBoard.id;
-      taskly.loadColumns(boardId);
-      taskly.loadCards(boardId);
+    // Load board data if not already loaded
+    if (taskly.uiState.selectedBoardId && !selectedBoard) {
+      taskly.refreshData();
     }
-  }, [selectedBoard?.id, user?.id]);
-
-  if (!selectedBoard || !user) {
-    return null;
-  }
-
-  const columns = taskly.appState.columns
-    .filter((col: ColumnType) => col.boardId === selectedBoard.id)
-    .sort((a: ColumnType, b: ColumnType) => a.order - b.order);
-
-  const cards = taskly.appState.cards
-    .filter((card: CardType) => card.boardId === selectedBoard.id)
-    .filter((card: CardType) => !card.isArchived)
-    .sort((a: ColumnType, b: ColumnType) => a.order - b.order);
+  }, [taskly.uiState.selectedBoardId]);
 
   const handleDragStart = (event: DragStartEvent) => {
     const { active } = event;
-    const dragData = active.data.current as DragData;
+    const data = active.data.current;
 
-    if (dragData?.type === 'card') {
-      setDraggedCard(dragData.card);
-    } else if (dragData?.type === 'column') {
-      setDraggedColumn(dragData.column);
+    if (data?.type === 'card') {
+      setActiveCard(data.card);
+      setDragType('card');
+    } else if (data?.type === 'column') {
+      setActiveColumn(data.column);
+      setDragType('column');
     }
   };
 
-  const handleDragOver = (event: DragOverEvent) => {
-    // Handle card moving between columns
-  };
-
-  const handleDragEnd = (event: DragEndEvent) => {
+  const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
-
+    
     if (!over) return;
 
-    const activeData = active.data.current as DragData;
-    const overData = over.data.current as DragData;
+    const activeData = active.data.current;
+    const overData = over.data.current;
 
-    // Handle column reordering
-    if (activeData?.type === 'column' && overData?.type === 'column') {
-      const activeColumnIndex = columns.findIndex((col: ColumnType) => col.id === active.id);
-      const overColumnIndex = columns.findIndex((col: ColumnType) => col.id === over.id);
-
-      if (activeColumnIndex !== overColumnIndex) {
-        const newColumns = arrayMove(columns, activeColumnIndex, overColumnIndex);
-        // Update column orders
-        newColumns.forEach((col: ColumnType, index: number) => {
-          taskly.updateColumn(col.id, { order: index });
-        });
-      }
-    }
-
-    // Handle card moving
-    if (activeData?.type === 'card') {
-      const card = activeData.card;
+    // Handle card drag and drop
+    if (dragType === 'card' && activeData?.type === 'card') {
+      const activeCard = activeData.card as Card;
       
       if (overData?.type === 'column' || overData?.type === 'column-cards') {
-        const newColumnId = overData.type === 'column' ? overData.column.id : overData.columnId;
+        const destinationColumnId = overData.type === 'column' 
+          ? overData.column.id 
+          : overData.columnId;
         
-        if (card.columnId !== newColumnId) {
-          taskly.updateCard(card.id, { columnId: newColumnId });
+        if (activeCard.columnId !== destinationColumnId) {
+          // Move card to different column
+          const destinationCards = cardsByColumn[destinationColumnId] || [];
+          const newOrder = Math.max(...destinationCards.map(c => c.order), 0) + 1;
+          
+          await taskly.moveCard(activeCard.id, destinationColumnId, newOrder);
         }
       }
     }
 
-    setDraggedCard(null);
-    setDraggedColumn(null);
+    // Handle column reordering
+    if (dragType === 'column' && activeData?.type === 'column' && overData?.type === 'column') {
+      const activeColumn = activeData.column as ColumnType;
+      const overColumn = overData.column as ColumnType;
+      
+      if (activeColumn.id !== overColumn.id) {
+        const activeIndex = boardColumns.findIndex(col => col.id === activeColumn.id);
+        const overIndex = boardColumns.findIndex(col => col.id === overColumn.id);
+        
+        const reorderedColumns = [...boardColumns];
+        const [movedColumn] = reorderedColumns.splice(activeIndex, 1);
+        reorderedColumns.splice(overIndex, 0, movedColumn);
+        
+        // Update order values
+        const updatedColumns = reorderedColumns.map((col, index) => ({
+          ...col,
+          order: index,
+        }));
+        
+        await taskly.reorderColumns(selectedBoard!.id, updatedColumns);
+      }
+    }
+
+    // Clear drag state
+    setActiveCard(null);
+    setActiveColumn(null);
+    setDragType(null);
   };
 
-  const handleCreateColumn = async () => {
-    if (newColumnTitle.trim()) {
-      await taskly.createColumn(selectedBoard.id, { title: newColumnTitle.trim() });
+  const handleCreateColumn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newColumnTitle.trim() || !selectedBoard) return;
+
+    try {
+      setIsCreatingColumn(true);
+      await taskly.createColumn(selectedBoard.id, newColumnTitle.trim());
       setNewColumnTitle('');
-      setShowNewColumn(false);
+    } catch (error) {
+      console.error('Failed to create column:', error);
+    } finally {
+      setIsCreatingColumn(false);
     }
   };
 
-  const handleDeleteColumn = async (columnId: string) => {
-    await taskly.deleteColumn(columnId);
-  };
-
-  const handleCreateCard = async (columnId: string, title: string) => {
-    await taskly.createCard(selectedBoard.id, columnId, { title });
-  };
-
-  const totalCards = cards.length;
-  const completedCards = cards.filter((c: CardType) => {
-    const completedColumn = columns.find((col: ColumnType) => 
-      col.id === c.columnId && 
-      (col.title.toLowerCase().includes('done') || col.title.toLowerCase().includes('complete'))
-    );
-    return completedColumn;
-  }).length;
-
-  return (
-    <div className="flex flex-col h-full bg-background">
-      {/* Header */}
-      <div className="flex items-center justify-between p-6 border-b border-border/20 bg-card/50">
-        <div className="flex items-center gap-4">
+  if (!selectedBoard) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <div className="text-center">
+          <Grid3x3 className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+          <h2 className="text-xl font-semibold text-muted-foreground mb-2">No Board Selected</h2>
+          <p className="text-muted-foreground mb-4">Select a board to view its columns and cards</p>
           <button
             onClick={() => taskly.setCurrentView('boards')}
-            className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
+            className="btn-primary"
           >
-            <ArrowLeft className="w-5 h-5" />
-            <span>Back to Boards</span>
+            View Boards
           </button>
-          
-          <div className="w-px h-6 bg-border/20" />
-          
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-gradient-primary rounded-lg">
-              <Grid3X3 className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <h1 className="text-xl font-semibold text-foreground">{selectedBoard.title}</h1>
-              <p className="text-sm text-muted-foreground">
-                {totalCards} cards • {completedCards} completed
-              </p>
-            </div>
-          </div>
         </div>
+      </div>
+    );
+  }
 
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Users className="w-4 h-4" />
-            <span>Personal</span>
+  return (
+    <div className="flex-1 flex flex-col bg-background">
+      {/* Header */}
+      <div className="border-b border-border/40 bg-card/30 backdrop-blur-sm">
+        <div className="px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => taskly.setCurrentView('boards')}
+                className="btn-ghost p-2"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+              
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-primary/10 rounded-lg">
+                  <Grid3x3 className="w-6 h-6 text-primary" />
+                </div>
+                <div>
+                  <h1 className="text-2xl font-bold text-foreground">{selectedBoard.title}</h1>
+                  <p className="text-sm text-muted-foreground">
+                    {boardColumns.length} columns • {boardCards.filter(c => !c.isArchived).length} cards
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              {/* Search */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <input
+                  type="text"
+                  placeholder="Search cards..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="input-modern pl-10 w-64"
+                />
+              </div>
+
+              {/* Filters */}
+              <button
+                onClick={() => setShowArchived(!showArchived)}
+                className={`btn-ghost p-2 ${showArchived ? 'bg-accent text-accent-foreground' : ''}`}
+                title={showArchived ? 'Hide archived cards' : 'Show archived cards'}
+              >
+                <Archive className="w-4 h-4" />
+              </button>
+
+              <button className="btn-ghost p-2" title="Board settings">
+                <MoreHorizontal className="w-4 h-4" />
+              </button>
+            </div>
           </div>
-          
-          <button className="p-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-colors">
-            <Star className="w-5 h-5" />
-          </button>
-          
-          <button className="p-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-colors">
-            <Archive className="w-5 h-5" />
-          </button>
-          
-          <button className="p-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-colors">
-            <Settings className="w-5 h-5" />
-          </button>
         </div>
       </div>
 
       {/* Board Content */}
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 p-6 overflow-hidden">
         <DndContext
           sensors={sensors}
-          collisionDetection={pointerWithin}
+          collisionDetection={closestCorners}
           onDragStart={handleDragStart}
-          onDragOver={handleDragOver}
           onDragEnd={handleDragEnd}
         >
-          <div className="flex gap-6 p-6 h-full overflow-x-auto">
-            {/* Existing Columns */}
-            {columns.map((column: ColumnType) => (
-              <Column
-                key={column.id}
-                column={column}
-                cards={cards.filter((card: CardType) => card.columnId === column.id)}
-                onDeleteColumn={handleDeleteColumn}
-                onCreateCard={handleCreateCard}
-              />
-            ))}
+          <div className="flex gap-6 h-full overflow-x-auto pb-6">
+            <SortableContext items={boardColumns.map(col => col.id)} strategy={horizontalListSortingStrategy}>
+              {boardColumns.map((col: Column) => {
+                const columnCards = cardsByColumn[col.id] || [];
+                
+                return (
+                  <Column
+                    key={col.id}
+                    column={col}
+                    cards={columnCards}
+                    onUpdateColumn={taskly.updateColumn}
+                    onDeleteColumn={taskly.deleteColumn}
+                    onCreateCard={taskly.createCard}
+                    onUpdateCard={taskly.updateCard}
+                    onDeleteCard={taskly.deleteCard}
+                  />
+                );
+              })}
+            </SortableContext>
 
-            {/* New Column Input */}
+            {/* Create Column */}
             <div className="flex-shrink-0 w-80">
-              {showNewColumn ? (
-                <div className="bg-card border border-border/20 rounded-xl p-4">
+              <form onSubmit={handleCreateColumn} className="glass-subtle border-dashed border-2 border-border/30 rounded-2xl p-6 h-fit">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="p-2 bg-primary/10 rounded-lg">
+                    <Plus className="w-5 h-5 text-primary" />
+                  </div>
+                  <h3 className="font-semibold text-foreground">Add Column</h3>
+                </div>
+                
+                <div className="space-y-4">
                   <input
                     type="text"
+                    placeholder="Enter column title..."
                     value={newColumnTitle}
                     onChange={(e) => setNewColumnTitle(e.target.value)}
-                    placeholder="Enter column title"
-                    className="input-modern mb-3"
-                    autoFocus
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        handleCreateColumn();
-                      } else if (e.key === 'Escape') {
-                        setShowNewColumn(false);
-                        setNewColumnTitle('');
-                      }
-                    }}
+                    className="input-modern w-full"
+                    disabled={isCreatingColumn}
                   />
-                  <div className="flex gap-2">
-                    <button
-                      onClick={handleCreateColumn}
-                      className="btn-primary text-sm"
-                      disabled={!newColumnTitle.trim()}
-                    >
-                      Add Column
-                    </button>
-                    <button
-                      onClick={() => {
-                        setShowNewColumn(false);
-                        setNewColumnTitle('');
-                      }}
-                      className="btn-ghost text-sm"
-                    >
-                      Cancel
-                    </button>
-                  </div>
+                  
+                  <button
+                    type="submit"
+                    disabled={!newColumnTitle.trim() || isCreatingColumn}
+                    className="btn-primary w-full flex items-center justify-center gap-2"
+                  >
+                    {isCreatingColumn ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Creating...
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="w-4 h-4" />
+                        Create Column
+                      </>
+                    )}
+                  </button>
                 </div>
-              ) : (
-                <button
-                  onClick={() => setShowNewColumn(true)}
-                  className="w-full h-12 bg-card/30 hover:bg-card/50 border-2 border-dashed border-border/30 hover:border-border/50 rounded-xl flex items-center justify-center gap-2 text-muted-foreground hover:text-foreground transition-all group"
-                >
-                  <Plus className="w-5 h-5 group-hover:scale-110 transition-transform" />
-                  <span>Add another column</span>
-                </button>
-              )}
+              </form>
             </div>
           </div>
 
           {/* Drag Overlays */}
           <DragOverlay>
-            {draggedCard && <CardDragOverlay card={draggedCard} />}
-            {draggedColumn && <ColumnDragOverlay column={draggedColumn} />}
+            {activeCard && dragType === 'card' && (
+              <CardDragOverlay card={activeCard} />
+            )}
+            {activeColumn && dragType === 'column' && (
+              <ColumnDragOverlay column={activeColumn} />
+            )}
           </DragOverlay>
         </DndContext>
       </div>
 
-      {/* Card Modal */}
-      {taskly.selectedCard && <CardModal />}
+      {/* Board Stats */}
+      <div className="border-t border-border/40 bg-card/30 backdrop-blur-sm px-6 py-3">
+        <div className="flex items-center justify-between text-sm text-muted-foreground">
+          <div className="flex items-center gap-6">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-success" />
+              <span>{boardCards.filter(c => !c.isArchived).length} Active Cards</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Archive className="w-4 h-4 text-muted-foreground" />
+              <span>{boardCards.filter(c => c.isArchived).length} Archived</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Clock className="w-4 h-4 text-warning" />
+              <span>{boardCards.filter(c => c.dueDate && !c.isArchived).length} With Due Dates</span>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-2">
+            <Calendar className="w-4 h-4" />
+            <span>Updated {new Date().toLocaleDateString()}</span>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
