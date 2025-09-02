@@ -99,6 +99,47 @@ export function TasklyProvider({ children }: { children: ReactNode }) {
   const currentBoard = appState.boards.find(b => b.id === uiState.selectedBoardId) || null;
   const selectedCard = appState.cards.find(c => c.id === uiState.selectedCardId) || null;
 
+  // Helper function to handle API errors
+  const handleError = (error: any) => {
+    console.error('API Error:', error);
+    const message = error?.message || 'An unexpected error occurred';
+    setError(message);
+    setIsLoading(false);
+  };
+
+  // Auth Actions
+  const authenticateWithToken = async (token: string) => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch('/api/auth/verify', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Authentication failed');
+      }
+
+      // Set user and switch to boards view
+      setAppState(prev => ({ ...prev, user: data.user }));
+      setUIState(prev => ({ ...prev, currentView: 'boards' }));
+      
+      // Load user's boards
+      await loadBoards();
+      setIsLoading(false);
+    } catch (error) {
+      localStorage.removeItem('taskly_token');
+      handleError(error);
+      setUIState(prev => ({ ...prev, currentView: 'auth' }));
+    }
+  };
+
   // Load initial data
   useEffect(() => {
     const initializeApp = async () => {
@@ -116,14 +157,6 @@ export function TasklyProvider({ children }: { children: ReactNode }) {
 
     initializeApp();
   }, []);
-
-  // Helper function to handle API errors
-  const handleError = (error: any) => {
-    console.error('API Error:', error);
-    const message = error?.message || 'An unexpected error occurred';
-    setError(message);
-    setIsLoading(false);
-  };
 
   // UI Actions
   const setCurrentView = (view: ViewMode) => {
@@ -158,7 +191,6 @@ export function TasklyProvider({ children }: { children: ReactNode }) {
     setError(null);
   };
 
-  // Auth Actions
   const login = async (credentials: LoginCredentials) => {
     setIsLoading(true);
     setError(null);
@@ -224,38 +256,6 @@ export function TasklyProvider({ children }: { children: ReactNode }) {
       setIsLoading(false);
     } catch (error) {
       handleError(error);
-    }
-  };
-
-  const authenticateWithToken = async (token: string) => {
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const response = await fetch('/api/auth/verify', {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Authentication failed');
-      }
-
-      // Set user and switch to boards view
-      setAppState(prev => ({ ...prev, user: data.user }));
-      setUIState(prev => ({ ...prev, currentView: 'boards' }));
-      
-      // Load user's boards
-      await loadBoards();
-      setIsLoading(false);
-    } catch (error) {
-      localStorage.removeItem('taskly_token');
-      handleError(error);
-      setUIState(prev => ({ ...prev, currentView: 'auth' }));
     }
   };
 
