@@ -356,8 +356,8 @@ export default function BoardPanel() {
 
           {/* Drag Overlays - Fix: Only render components when items exist and are defined */}
           <DragOverlay>
-            {activeColumn && <ColumnDragOverlay column={activeColumn} />}
-            {activeCard && <CardDragOverlay card={activeCard} />}
+            {activeColumn ? <ColumnDragOverlay column={activeColumn} /> : null}
+            {activeCard ? <CardDragOverlay card={activeCard} /> : null}
           </DragOverlay>
         </DndContext>
       </div>
