@@ -110,6 +110,21 @@ export function useTaskly() {
   }, [clearError]);
 
   // Auth functions
+  const checkAuth = useCallback(async () => {
+    if (!authToken) return false;
+    
+    try {
+      const { user } = await apiRequest<{ user: User }>(`${API_BASE}/auth/verify`);
+      setAppState(prev => ({ ...prev, user }));
+      return true;
+    } catch (error) {
+      console.error('Auth check failed:', error);
+      setAuthToken(null);
+      setAppState(prev => ({ ...prev, user: null }));
+      return false;
+    }
+  }, [authToken, setAuthToken]);
+
   const verifyToken = useCallback(async () => {
     if (!authToken) return;
 
@@ -193,6 +208,44 @@ export function useTaskly() {
     });
     clearError();
   }, [setAuthToken, clearError]);
+
+  // UI State functions
+  const setView = useCallback((view: ViewMode) => {
+    setUiState(prev => ({ ...prev, currentView: view }));
+  }, []);
+
+  const setCurrentView = useCallback((view: ViewMode) => {
+    setUiState(prev => ({ ...prev, currentView: view }));
+  }, []);
+
+  const selectBoard = useCallback((boardId: string | null) => {
+    setUiState(prev => ({ 
+      ...prev, 
+      selectedBoardId: boardId,
+      currentView: boardId ? 'board' : 'boards'
+    }));
+  }, []);
+
+  const setSelectedCardId = useCallback((cardId: string | null) => {
+    setUiState(prev => ({ ...prev, selectedCardId: cardId }));
+  }, []);
+
+  // Getter functions
+  const getBoardById = useCallback((boardId: string): Board | null => {
+    return appState.boards.find(board => board.id === boardId) || null;
+  }, [appState.boards]);
+
+  const getColumnsByBoardId = useCallback((boardId: string): Column[] => {
+    return appState.columns.filter(column => column.boardId === boardId);
+  }, [appState.columns]);
+
+  const getCardsByColumnId = useCallback((columnId: string): Card[] => {
+    return appState.cards.filter(card => card.columnId === columnId && !card.isArchived);
+  }, [appState.cards]);
+
+  const getCardById = useCallback((cardId: string): Card | null => {
+    return appState.cards.find(card => card.id === cardId) || null;
+  }, [appState.cards]);
 
   // Board functions
   const loadBoards = useCallback(async () => {
@@ -305,6 +358,10 @@ export function useTaskly() {
     }
   }, []);
 
+  const addColumn = useCallback(async (boardId: string, title: string) => {
+    return await createColumn(boardId, title);
+  }, []);
+
   const createColumn = useCallback(async (boardId: string, title: string) => {
     try {
       setIsLoading(true);
@@ -386,6 +443,16 @@ export function useTaskly() {
     } finally {
       setIsLoading(false);
     }
+  }, []);
+
+  const addCard = useCallback(async (
+    columnId: string,
+    title: string,
+    description?: string,
+    labels?: string[],
+    dueDate?: string
+  ) => {
+    return await createCard(columnId, title, description, labels, dueDate);
   }, []);
 
   const createCard = useCallback(async (
@@ -555,12 +622,34 @@ export function useTaskly() {
     isLoading,
     error,
 
+    // User state
+    user: appState.user,
+    currentBoard: uiState.selectedBoardId ? getBoardById(uiState.selectedBoardId) : null,
+    selectedCard: uiState.selectedCardId ? getCardById(uiState.selectedCardId) : null,
+    selectedBoardId: uiState.selectedBoardId,
+    boards: appState.boards,
+    columns: appState.columns,
+    cards: appState.cards,
+
     // Auth functions
+    checkAuth,
     login,
     signUp,
     logout,
     setAuthMode,
     clearError,
+
+    // UI functions
+    setView,
+    setCurrentView,
+    selectBoard,
+    setSelectedCardId,
+
+    // Getter functions
+    getBoardById,
+    getColumnsByBoardId,
+    getCardsByColumnId,
+    getCardById,
 
     // Board functions
     loadBoards,
@@ -570,12 +659,14 @@ export function useTaskly() {
 
     // Column functions
     loadColumns,
+    addColumn,
     createColumn,
     updateColumn,
     deleteColumn,
 
     // Card functions
     loadCards,
+    addCard,
     createCard,
     updateCard,
     moveCard,
