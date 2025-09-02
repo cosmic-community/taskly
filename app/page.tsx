@@ -17,12 +17,12 @@ function TasklyApp() {
   }, [taskly]);
 
   // Show auth panel if no user is logged in
-  if (!taskly.user || taskly.currentView === 'auth') {
+  if (!taskly.user || taskly.uiState.currentView === 'auth') {
     return <AuthPanel />;
   }
 
   const renderCurrentView = () => {
-    switch (taskly.currentView) {
+    switch (taskly.uiState.currentView) {
       case 'boards':
         return <BoardsPanel />;
       case 'board':
@@ -50,9 +50,9 @@ function TasklyApp() {
               {/* Breadcrumb */}
               <nav className="hidden sm:flex items-center gap-2 text-sm">
                 <button
-                  onClick={() => taskly.setCurrentView('boards')}
+                  onClick={() => taskly.setView('boards')}
                   className={`px-3 py-1.5 rounded-lg transition-colors duration-200 ${
-                    taskly.currentView === 'boards'
+                    taskly.uiState.currentView === 'boards'
                       ? 'bg-primary/10 text-primary font-medium'
                       : 'text-muted-foreground hover:text-foreground hover:bg-secondary/50'
                   }`}
@@ -60,11 +60,11 @@ function TasklyApp() {
                   My Boards
                 </button>
                 
-                {taskly.selectedBoardId && (
+                {taskly.uiState.selectedBoardId && (
                   <>
                     <span className="text-muted-foreground">/</span>
                     <span className="text-foreground font-medium">
-                      {taskly.getBoardById(taskly.selectedBoardId)?.title || 'Board'}
+                      {taskly.getBoardById(taskly.uiState.selectedBoardId)?.title || 'Board'}
                     </span>
                   </>
                 )}
@@ -97,7 +97,7 @@ function TasklyApp() {
       </main>
 
       {/* Card Modal */}
-      {taskly.selectedCardId && taskly.currentView === 'card' && <CardModal />}
+      {taskly.uiState.selectedCardId && taskly.uiState.currentView === 'card' && <CardModal />}
     </div>
   );
 }
