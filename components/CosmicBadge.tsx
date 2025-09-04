@@ -1,30 +1,30 @@
-'use client'
+'use client';
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react';
 
 interface CosmicBadgeProps {
   bucketSlug: string;
 }
 
 export default function CosmicBadge({ bucketSlug }: CosmicBadgeProps) {
-  const [isVisible, setIsVisible] = useState(false)
-  
+  const [isVisible, setIsVisible] = useState(false);
+
   useEffect(() => {
     // Show badge after a short delay and check if previously dismissed
-    const isDismissed = localStorage.getItem('cosmic-badge-dismissed')
+    const isDismissed = localStorage.getItem('cosmic-badge-dismissed');
     if (!isDismissed) {
-      const timer = setTimeout(() => setIsVisible(true), 1000)
-      return () => clearTimeout(timer)
+      const timer = setTimeout(() => setIsVisible(true), 1000);
+      return () => clearTimeout(timer);
     }
-  }, [])
-  
+  }, []);
+
   const handleDismiss = () => {
-    setIsVisible(false)
-    localStorage.setItem('cosmic-badge-dismissed', 'true')
-  }
-  
-  if (!isVisible) return null
-  
+    setIsVisible(false);
+    localStorage.setItem('cosmic-badge-dismissed', 'true');
+  };
+
+  if (!isVisible) return null;
+
   return (
     <div 
       className="fixed bottom-5 right-5 z-50 transition-colors duration-200"
@@ -52,8 +52,16 @@ export default function CosmicBadge({ bucketSlug }: CosmicBadgeProps) {
         target="_blank"
         rel="noopener noreferrer"
         className="flex items-center gap-2 text-white text-sm font-medium no-underline"
-        onMouseEnter={(e) => e.currentTarget.parentElement!.style.backgroundColor = '#1a2326'}
-        onMouseLeave={(e) => e.currentTarget.parentElement!.style.backgroundColor = '#11171A'}
+        onMouseEnter={(e) => {
+          if (e.currentTarget.parentElement) {
+            e.currentTarget.parentElement.style.backgroundColor = '#1a2326';
+          }
+        }}
+        onMouseLeave={(e) => {
+          if (e.currentTarget.parentElement) {
+            e.currentTarget.parentElement.style.backgroundColor = '#11171A';
+          }
+        }}
       >
         <img 
           src="https://cdn.cosmicjs.com/b67de7d0-c810-11ed-b01d-23d7b265c299-logo508x500.svg" 
@@ -63,5 +71,5 @@ export default function CosmicBadge({ bucketSlug }: CosmicBadgeProps) {
         Built with Cosmic
       </a>
     </div>
-  )
+  );
 }
