@@ -118,17 +118,19 @@ export default function ColumnComponent({ column, taskly, labelFilter = [] }: Co
       style={style}
       className="flex-shrink-0 w-80"
     >
-      <div className="glass-light border border-border/20 rounded-2xl shadow-card overflow-visible">
-        {/* Column Header */}
+      <div className="glass-medium border border-border/20 rounded-3xl shadow-glass overflow-visible animate-liquid-float">
+        {/* Column Header with enhanced liquid glass */}
         <div
           {...attributes}
           {...listeners}
-          className="p-4 cursor-grab active:cursor-grabbing bg-gradient-to-r from-secondary/50 to-secondary/30 border-b border-border/20 relative overflow-visible"
+          className="p-4 cursor-grab active:cursor-grabbing glass-primary rounded-t-3xl border-b border-border/20 relative overflow-visible"
         >
-          <div className="flex items-center justify-between">
+          <div className="absolute inset-0 bg-gradient-to-r from-secondary/50 to-secondary/30 rounded-t-3xl" />
+          <div className="absolute inset-0 bg-liquid-glass opacity-30" />
+          <div className="relative flex items-center justify-between">
             <div className="flex items-center gap-3 flex-1">
-              <div className="p-1.5 bg-gradient-primary rounded-lg shadow-glow">
-                <Hash className="w-3 h-3 text-white" />
+              <div className="p-2 bg-gradient-primary rounded-xl shadow-liquid animate-pulse-glow">
+                <Hash className="w-4 h-4 text-white" />
               </div>
               
               {isEditingTitle ? (
@@ -138,7 +140,7 @@ export default function ColumnComponent({ column, taskly, labelFilter = [] }: Co
                   onChange={(e) => setEditedTitle(e.target.value)}
                   onKeyDown={handleTitleKeyPress}
                   onBlur={handleTitleSubmit}
-                  className="text-sm font-bold bg-transparent border-none outline-none flex-1 text-foreground"
+                  className="text-sm font-bold bg-transparent border-none outline-none flex-1 text-foreground glass-thin rounded-lg px-2 py-1"
                   autoFocus
                   onClick={(e) => e.stopPropagation()}
                 />
@@ -150,12 +152,14 @@ export default function ColumnComponent({ column, taskly, labelFilter = [] }: Co
             </div>
             
             <div className="flex items-center gap-2">
-              <div className={`flex items-center gap-1 px-2.5 py-1 rounded-lg border ${
+              <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border transition-all duration-300 ${
                 labelFilter.length > 0 && cards.length !== allCards.length
-                  ? 'bg-warning/20 text-warning border-warning/20'
-                  : 'bg-primary/20 text-primary border-primary/20'
+                  ? 'glass-accent border-warning/20 text-warning shadow-[0_0_20px_rgba(251,191,36,0.15)]'
+                  : 'glass-primary border-primary/20 text-primary shadow-liquid'
               }`}>
-                <Zap className="w-3 h-3" />
+                <div className="p-0.5 bg-primary/30 rounded">
+                  <Zap className="w-3 h-3" />
+                </div>
                 <span className="text-xs font-semibold">
                   {labelFilter.length > 0 && cards.length !== allCards.length 
                     ? `${cards.length}/${allCards.length}`
@@ -170,7 +174,7 @@ export default function ColumnComponent({ column, taskly, labelFilter = [] }: Co
                     e.stopPropagation();
                     setShowColumnMenu(!showColumnMenu);
                   }}
-                  className="p-2 hover:bg-secondary/50 rounded-lg transition-colors duration-200"
+                  className="p-2 glass-medium hover:glass-thick rounded-xl transition-all duration-200 liquid-glass-hover"
                 >
                   <MoreVertical className="w-4 h-4" />
                 </button>
@@ -181,16 +185,18 @@ export default function ColumnComponent({ column, taskly, labelFilter = [] }: Co
                       className="fixed inset-0 z-[9998]"
                       onClick={() => setShowColumnMenu(false)}
                     />
-                    <div className="absolute top-full right-0 mt-2 w-44 glass border border-border/30 rounded-xl shadow-card z-[9999] overflow-hidden">
+                    <div className="absolute top-full right-0 mt-2 w-44 glass-thick border border-border/30 rounded-2xl shadow-glass-lg z-[9999] overflow-hidden">
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           setIsEditingTitle(true);
                           setShowColumnMenu(false);
                         }}
-                        className="w-full px-4 py-3 text-left text-sm hover:bg-secondary/50 transition-colors duration-200 flex items-center gap-2"
+                        className="w-full px-4 py-3 text-left text-sm hover:glass-primary transition-all duration-200 flex items-center gap-2 liquid-glass-hover"
                       >
-                        <Edit2 className="w-4 h-4 text-primary" />
+                        <div className="p-1.5 bg-primary/20 rounded-lg">
+                          <Edit2 className="w-4 h-4 text-primary" />
+                        </div>
                         <span>Rename</span>
                       </button>
                       <div className="h-px bg-border/20" />
@@ -202,7 +208,9 @@ export default function ColumnComponent({ column, taskly, labelFilter = [] }: Co
                         }}
                         className="w-full px-4 py-3 text-left text-sm text-destructive hover:bg-destructive/10 transition-colors duration-200 flex items-center gap-2"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <div className="p-1.5 bg-destructive/20 rounded-lg">
+                          <Trash2 className="w-4 h-4" />
+                        </div>
                         <span>Delete</span>
                       </button>
                     </div>
@@ -213,10 +221,10 @@ export default function ColumnComponent({ column, taskly, labelFilter = [] }: Co
           </div>
         </div>
 
-        {/* Cards Area */}
+        {/* Cards Area with enhanced liquid glass */}
         <div 
           ref={setDroppableNodeRef}
-          className="p-4 min-h-[300px] space-y-3"
+          className="p-4 min-h-[300px] space-y-3 glass-ultra-thin rounded-b-3xl"
         >
           <SortableContext items={cardIds} strategy={verticalListSortingStrategy}>
             {cards.map((card, index) => (
@@ -231,15 +239,15 @@ export default function ColumnComponent({ column, taskly, labelFilter = [] }: Co
 
           {/* Show message if cards are filtered out */}
           {labelFilter.length > 0 && cards.length === 0 && allCards.length > 0 && (
-            <div className="p-4 text-center text-muted-foreground border-2 border-dashed border-muted rounded-xl">
+            <div className="p-4 text-center text-muted-foreground border-2 border-dashed border-muted rounded-2xl glass-thin">
               <div className="text-sm">No cards match the current label filter</div>
               <div className="text-xs mt-1 opacity-75">{allCards.length} card{allCards.length !== 1 ? 's' : ''} in this column</div>
             </div>
           )}
 
-          {/* Add Card */}
+          {/* Add Card with enhanced styling */}
           {isCreatingCard ? (
-            <div className="p-4 bg-gradient-card border-2 border-dashed border-primary/50 rounded-xl animate-scale-in">
+            <div className="p-4 glass-primary border-2 border-dashed border-primary/50 rounded-2xl animate-scale-in shadow-liquid">
               <textarea
                 value={newCardTitle}
                 onChange={(e) => setNewCardTitle(e.target.value)}
@@ -275,10 +283,10 @@ export default function ColumnComponent({ column, taskly, labelFilter = [] }: Co
           ) : (
             <button
               onClick={() => setIsCreatingCard(true)}
-              className="group w-full p-4 text-sm text-muted-foreground hover:text-foreground hover:bg-secondary/30 border-2 border-dashed border-muted hover:border-primary/50 rounded-xl transition-all duration-300 flex items-center justify-center gap-2"
+              className="group w-full p-4 text-sm text-muted-foreground hover:text-foreground glass-ultra-thin hover:glass-medium border-2 border-dashed border-muted hover:border-primary/50 rounded-2xl transition-all duration-300 flex items-center justify-center gap-2 liquid-glass-hover"
             >
-              <div className="p-1.5 bg-gradient-primary rounded-lg opacity-70 group-hover:opacity-100 transition-opacity duration-200">
-                <Plus className="w-3 h-3 text-white" />
+              <div className="p-2 bg-gradient-primary rounded-xl opacity-70 group-hover:opacity-100 transition-all duration-200 shadow-liquid group-hover:scale-110">
+                <Plus className="w-4 h-4 text-white" />
               </div>
               <span className="font-medium">Add a card</span>
             </button>

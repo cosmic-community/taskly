@@ -113,20 +113,21 @@ export default function CardModal({ taskly, card, onClose }: CardModalProps) {
   const board = taskly.appState.boards.find(b => b.id === card.boardId);
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[10000]">
-      <div className="glass border border-border/30 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl animate-scale-in">
-        {/* Header */}
-        <div className="relative p-6 border-b border-border/20 bg-gradient-to-r from-primary/5 to-accent/5">
-          <div className="absolute inset-0 bg-gradient-hero opacity-10 rounded-t-2xl" />
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-3xl flex items-center justify-center p-4 z-[10000] animate-backdrop-blur">
+      <div className="glass-thick border border-border/30 rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-glass-xl animate-scale-in">
+        {/* Header with enhanced liquid glass */}
+        <div className="relative p-6 border-b border-border/20 bg-gradient-to-r from-primary/5 to-accent/5 rounded-t-3xl overflow-hidden">
+          <div className="absolute inset-0 glass-primary opacity-30" />
+          <div className="absolute inset-0 bg-liquid-glass animate-glass-shimmer" />
           <div className="relative flex items-start justify-between">
             <div className="flex-1">
               <div className="flex items-center gap-3 text-sm text-muted-foreground mb-3">
-                <div className="p-1.5 bg-gradient-primary rounded-lg shadow-glow">
-                  <Sparkles className="w-3 h-3 text-white" />
+                <div className="p-2 bg-gradient-primary rounded-xl shadow-liquid">
+                  <Sparkles className="w-4 h-4 text-white" />
                 </div>
-                <span>{board?.title || 'Unknown Board'}</span>
+                <span className="glass-thin px-3 py-1 rounded-lg">{board?.title || 'Unknown Board'}</span>
                 <span className="opacity-50">/</span>
-                <span>{column?.title || 'Unknown Column'}</span>
+                <span className="glass-thin px-3 py-1 rounded-lg">{column?.title || 'Unknown Column'}</span>
               </div>
               <input
                 type="text"
@@ -136,13 +137,13 @@ export default function CardModal({ taskly, card, onClose }: CardModalProps) {
                 placeholder="Card title..."
               />
               {hasChanges && !isSaving && (
-                <div className="flex items-center gap-2 mt-3 text-xs text-primary">
+                <div className="flex items-center gap-2 mt-3 text-xs text-primary glass-thin px-3 py-1 rounded-lg inline-flex">
                   <Save className="w-3 h-3 animate-pulse" />
                   <span>Auto-saving changes...</span>
                 </div>
               )}
               {isSaving && (
-                <div className="flex items-center gap-2 mt-3 text-xs text-success">
+                <div className="flex items-center gap-2 mt-3 text-xs text-success glass-success px-3 py-1 rounded-lg inline-flex">
                   <div className="w-3 h-3 animate-spin rounded-full border-2 border-success border-t-transparent" />
                   <span>Saving...</span>
                 </div>
@@ -153,7 +154,7 @@ export default function CardModal({ taskly, card, onClose }: CardModalProps) {
               <div className="relative">
                 <button
                   onClick={() => setShowMenu(!showMenu)}
-                  className="p-3 hover:bg-secondary/50 rounded-xl transition-colors duration-200"
+                  className="p-3 glass-medium hover:glass-thick rounded-xl transition-all duration-200 liquid-glass-hover"
                   aria-label="Card menu"
                 >
                   <MoreVertical className="w-4 h-4" />
@@ -165,15 +166,17 @@ export default function CardModal({ taskly, card, onClose }: CardModalProps) {
                       className="fixed inset-0 z-[9998]"
                       onClick={() => setShowMenu(false)}
                     />
-                    <div className="absolute top-full right-0 mt-2 w-52 glass border border-border/30 rounded-xl shadow-card z-[9999] overflow-hidden">
+                    <div className="absolute top-full right-0 mt-2 w-52 glass-thick border border-border/30 rounded-2xl shadow-glass-lg z-[9999] overflow-hidden">
                       <button
                         onClick={() => {
                           handleArchiveCard();
                           setShowMenu(false);
                         }}
-                        className="w-full px-4 py-3 text-left text-sm hover:bg-secondary/50 transition-colors duration-200 flex items-center gap-3"
+                        className="w-full px-4 py-3 text-left text-sm hover:glass-accent transition-all duration-200 flex items-center gap-3 liquid-glass-hover"
                       >
-                        <Archive className="w-4 h-4 text-accent" />
+                        <div className="p-1.5 bg-accent/20 rounded-lg">
+                          <Archive className="w-4 h-4 text-accent" />
+                        </div>
                         <span>Archive Card</span>
                       </button>
                       <div className="h-px bg-border/20" />
@@ -184,7 +187,9 @@ export default function CardModal({ taskly, card, onClose }: CardModalProps) {
                         }}
                         className="w-full px-4 py-3 text-left text-sm text-destructive hover:bg-destructive/10 transition-colors duration-200 flex items-center gap-3"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <div className="p-1.5 bg-destructive/20 rounded-lg">
+                          <Trash2 className="w-4 h-4" />
+                        </div>
                         <span>Delete Card</span>
                       </button>
                     </div>
@@ -194,7 +199,7 @@ export default function CardModal({ taskly, card, onClose }: CardModalProps) {
               
               <button
                 onClick={onClose}
-                className="p-3 hover:bg-secondary/50 rounded-xl transition-colors duration-200"
+                className="p-3 glass-medium hover:glass-thick rounded-xl transition-all duration-200 liquid-glass-hover"
                 aria-label="Close modal"
               >
                 <X className="w-4 h-4" />
@@ -203,29 +208,31 @@ export default function CardModal({ taskly, card, onClose }: CardModalProps) {
           </div>
         </div>
 
-        {/* Content */}
+        {/* Content with enhanced liquid glass sections */}
         <div className="p-6 space-y-8">
           {/* Description */}
           <div>
             <label className="flex items-center gap-3 text-sm font-semibold text-foreground mb-4">
-              <div className="p-2 bg-gradient-to-br from-primary/20 to-primary/10 rounded-lg">
+              <div className="p-2.5 bg-gradient-to-br from-primary/20 to-primary/10 rounded-xl shadow-liquid">
                 <AlignLeft className="w-4 h-4 text-primary" />
               </div>
               Description
             </label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Add a description to provide more context..."
-              rows={4}
-              className="input-modern w-full resize-none"
-            />
+            <div className="glass-medium rounded-2xl border border-border/20 overflow-hidden">
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Add a description to provide more context..."
+                rows={4}
+                className="w-full p-4 bg-transparent border-none outline-none text-foreground placeholder-muted-foreground resize-none focus:bg-glass-thin transition-all duration-300"
+              />
+            </div>
           </div>
 
           {/* Labels */}
           <div>
             <label className="flex items-center gap-3 text-sm font-semibold text-foreground mb-4">
-              <div className="p-2 bg-gradient-to-br from-accent/20 to-accent/10 rounded-lg">
+              <div className="p-2.5 bg-gradient-to-br from-accent/20 to-accent/10 rounded-xl shadow-liquid">
                 <Tag className="w-4 h-4 text-accent" />
               </div>
               Labels
@@ -237,13 +244,18 @@ export default function CardModal({ taskly, card, onClose }: CardModalProps) {
                 {labels.map((label, index) => (
                   <button
                     key={index}
-                    className="group inline-flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-primary/20 to-accent/20 text-primary text-sm rounded-xl border border-primary/20 hover:from-primary/30 hover:to-accent/30 transition-all duration-200"
+                    className="group inline-flex items-center gap-2 px-3 py-2 glass-primary rounded-xl border border-primary/20 hover:glass-thick transition-all duration-200 liquid-glass-hover animate-liquid-float"
+                    style={{ animationDelay: `${index * 0.1}s` }}
                     onClick={() => handleRemoveLabel(label)}
                     title={`Remove "${label}" label`}
                   >
-                    <Tag className="w-3 h-3" />
+                    <div className="p-0.5 bg-primary/30 rounded">
+                      <Tag className="w-3 h-3 text-primary" />
+                    </div>
                     {label}
-                    <X className="w-3 h-3 opacity-60 group-hover:opacity-100 transition-opacity" />
+                    <div className="p-0.5 bg-destructive/30 rounded opacity-60 group-hover:opacity-100 transition-opacity">
+                      <X className="w-3 h-3 text-destructive" />
+                    </div>
                   </button>
                 ))}
               </div>
@@ -251,14 +263,16 @@ export default function CardModal({ taskly, card, onClose }: CardModalProps) {
 
             {/* Add New Label */}
             <div className="flex gap-3">
-              <input
-                type="text"
-                value={newLabel}
-                onChange={(e) => setNewLabel(e.target.value)}
-                onKeyDown={handleKeyPress}
-                placeholder="Add a label..."
-                className="input-modern flex-1"
-              />
+              <div className="flex-1 glass-medium rounded-xl border border-border/20 overflow-hidden">
+                <input
+                  type="text"
+                  value={newLabel}
+                  onChange={(e) => setNewLabel(e.target.value)}
+                  onKeyDown={handleKeyPress}
+                  placeholder="Add a label..."
+                  className="w-full p-3 bg-transparent border-none outline-none text-foreground placeholder-muted-foreground"
+                />
+              </div>
               <button
                 onClick={handleAddLabel}
                 disabled={!newLabel.trim() || labels.includes(newLabel.trim())}
@@ -272,18 +286,20 @@ export default function CardModal({ taskly, card, onClose }: CardModalProps) {
           {/* Due Date */}
           <div>
             <label className="flex items-center gap-3 text-sm font-semibold text-foreground mb-4">
-              <div className="p-2 bg-gradient-to-br from-success/20 to-success/10 rounded-lg">
+              <div className="p-2.5 bg-gradient-to-br from-success/20 to-success/10 rounded-xl shadow-liquid">
                 <Calendar className="w-4 h-4 text-success" />
               </div>
               Due Date
             </label>
             <div className="flex gap-3">
-              <input
-                type="datetime-local"
-                value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
-                className="input-modern flex-1"
-              />
+              <div className="flex-1 glass-medium rounded-xl border border-border/20 overflow-hidden">
+                <input
+                  type="datetime-local"
+                  value={dueDate}
+                  onChange={(e) => setDueDate(e.target.value)}
+                  className="w-full p-3 bg-transparent border-none outline-none text-foreground"
+                />
+              </div>
               {dueDate && (
                 <button
                   onClick={() => setDueDate('')}
@@ -296,17 +312,18 @@ export default function CardModal({ taskly, card, onClose }: CardModalProps) {
           </div>
         </div>
 
-        {/* Footer with Save & Close Button */}
-        <div className="border-t border-border/20 p-6 bg-gradient-to-r from-primary/5 to-accent/5">
-          <div className="flex items-center justify-between">
+        {/* Footer with enhanced liquid glass styling */}
+        <div className="border-t border-border/20 p-6 bg-gradient-to-r from-primary/5 to-accent/5 rounded-b-3xl relative overflow-hidden">
+          <div className="absolute inset-0 glass-thin opacity-50" />
+          <div className="relative flex items-center justify-between">
             <div className="text-sm text-muted-foreground">
               {hasChanges ? (
-                <span className="flex items-center gap-2 text-primary">
+                <span className="flex items-center gap-2 text-primary glass-thin px-3 py-1 rounded-lg">
                   <Save className="w-3 h-3" />
                   Unsaved changes
                 </span>
               ) : (
-                <span className="flex items-center gap-2 text-success">
+                <span className="flex items-center gap-2 text-success glass-success px-3 py-1 rounded-lg">
                   <Check className="w-3 h-3" />
                   All changes saved
                 </span>

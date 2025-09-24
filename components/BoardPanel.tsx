@@ -114,24 +114,25 @@ export default function BoardPanel({ taskly, board }: BoardPanelProps) {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Modern Header */}
-      <header className="glass border-b border-border/20 px-6 py-4 relative overflow-visible z-50">
+      {/* Enhanced Header with liquid glass */}
+      <header className="glass-thick border-b border-border/20 px-6 py-4 relative overflow-visible z-50 shadow-glass">
         <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-accent/5" />
+        <div className="absolute inset-0 bg-liquid-glass opacity-30 animate-glass-shimmer" />
         <div className="relative flex items-center justify-between max-w-none">
           <div className="flex items-center gap-6">
             <button
               onClick={() => taskly.selectBoard(null)}
-              className="btn-ghost flex items-center gap-2 hover:bg-secondary/50"
+              className="btn-ghost flex items-center gap-2 glass-medium hover:glass-thick"
             >
               <ArrowLeft className="w-4 h-4" />
               <span className="text-sm font-medium">Back to Boards</span>
             </button>
             
-            <div className="h-8 w-px bg-border/50" />
+            <div className="h-8 w-px glass-thin" />
             
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-gradient-primary rounded-lg shadow-glow">
-                <Sparkles className="w-4 h-4 text-white" />
+              <div className="p-2.5 bg-gradient-primary rounded-xl shadow-liquid animate-pulse-glow">
+                <Sparkles className="w-5 h-5 text-white" />
               </div>
               
               {isEditingTitle ? (
@@ -141,7 +142,7 @@ export default function BoardPanel({ taskly, board }: BoardPanelProps) {
                   onChange={(e) => setEditedTitle(e.target.value)}
                   onKeyDown={handleBoardTitleKeyPress}
                   onBlur={handleBoardTitleSubmit}
-                  className="text-2xl font-bold bg-transparent border-none outline-none min-w-[200px] text-foreground"
+                  className="text-2xl font-bold bg-transparent border-none outline-none min-w-[200px] text-foreground glass-thin rounded-lg px-3 py-1"
                   autoFocus
                 />
               ) : (
@@ -157,11 +158,11 @@ export default function BoardPanel({ taskly, board }: BoardPanelProps) {
 
           <div className="flex items-center gap-4">
             <div className="hidden md:flex items-center gap-4">
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-secondary/50 rounded-lg border border-border/30">
+              <div className="flex items-center gap-2 px-4 py-2 glass-medium rounded-xl border border-border/30 shadow-glass">
                 <span className="text-sm text-muted-foreground">Columns:</span>
                 <span className="text-sm font-semibold text-primary">{columns.length}</span>
               </div>
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-secondary/50 rounded-lg border border-border/30">
+              <div className="flex items-center gap-2 px-4 py-2 glass-medium rounded-xl border border-border/30 shadow-glass">
                 <span className="text-sm text-muted-foreground">Cards:</span>
                 <span className="text-sm font-semibold text-accent">
                   {selectedLabels.length > 0 ? `${filteredCardsCount} filtered` : filteredCardsCount}
@@ -169,20 +170,20 @@ export default function BoardPanel({ taskly, board }: BoardPanelProps) {
               </div>
             </div>
 
-            {/* Label Filter */}
+            {/* Enhanced Label Filter */}
             {allLabels.length > 0 && (
               <div className="relative">
                 <button
                   onClick={() => setShowLabelFilter(!showLabelFilter)}
-                  className={`p-3 rounded-xl transition-all duration-200 border flex items-center gap-2 ${
+                  className={`p-3 rounded-2xl transition-all duration-300 border flex items-center gap-2 shadow-glass ${
                     selectedLabels.length > 0
-                      ? 'bg-primary/20 border-primary/30 text-primary'
-                      : 'hover:bg-secondary/50 border-transparent hover:border-border/30'
+                      ? 'glass-primary border-primary/30 text-primary shadow-liquid'
+                      : 'glass-medium hover:glass-thick border-transparent hover:border-border/30'
                   }`}
                 >
                   <Filter className="w-4 h-4" />
                   {selectedLabels.length > 0 && (
-                    <span className="text-xs font-semibold bg-primary/30 px-1.5 py-0.5 rounded">
+                    <span className="text-xs font-semibold bg-primary/30 px-2 py-1 rounded-lg shadow-inner">
                       {selectedLabels.length}
                     </span>
                   )}
@@ -194,17 +195,19 @@ export default function BoardPanel({ taskly, board }: BoardPanelProps) {
                       className="fixed inset-0 z-[9998]"
                       onClick={() => setShowLabelFilter(false)}
                     />
-                    <div className="absolute top-full right-0 mt-2 w-80 glass border border-border/30 rounded-xl shadow-card z-[9999] overflow-hidden">
-                      <div className="p-4 border-b border-border/20">
+                    <div className="absolute top-full right-0 mt-2 w-80 glass-thick border border-border/30 rounded-2xl shadow-glass-xl z-[9999] overflow-hidden animate-scale-in">
+                      <div className="p-4 border-b border-border/20 glass-primary">
                         <div className="flex items-center justify-between mb-3">
                           <h4 className="font-semibold text-sm flex items-center gap-2">
-                            <Tag className="w-4 h-4 text-primary" />
+                            <div className="p-1.5 bg-primary/30 rounded-lg">
+                              <Tag className="w-4 h-4 text-primary" />
+                            </div>
                             Filter by Labels
                           </h4>
                           {selectedLabels.length > 0 && (
                             <button
                               onClick={clearAllFilters}
-                              className="text-xs text-muted-foreground hover:text-foreground transition-colors duration-200 flex items-center gap-1"
+                              className="text-xs text-muted-foreground hover:text-foreground transition-colors duration-200 flex items-center gap-1 glass-thin px-2 py-1 rounded-lg"
                             >
                               <X className="w-3 h-3" />
                               Clear all
@@ -218,7 +221,7 @@ export default function BoardPanel({ taskly, board }: BoardPanelProps) {
                       
                       <div className="max-h-60 overflow-y-auto p-4">
                         <div className="space-y-2">
-                          {allLabels.map((label) => {
+                          {allLabels.map((label, index) => {
                             const isSelected = selectedLabels.includes(label);
                             const cardCount = taskly.appState.cards.filter(c => 
                               c.boardId === board.id && 
@@ -231,21 +234,24 @@ export default function BoardPanel({ taskly, board }: BoardPanelProps) {
                               <button
                                 key={label}
                                 onClick={() => toggleLabelFilter(label)}
-                                className={`w-full flex items-center justify-between p-3 rounded-lg border transition-all duration-200 ${
+                                className={`w-full flex items-center justify-between p-3 rounded-xl border transition-all duration-300 liquid-glass-hover animate-fade-in ${
                                   isSelected
-                                    ? 'bg-primary/20 border-primary/30 text-primary'
-                                    : 'hover:bg-secondary/50 border-border/20 hover:border-border/40'
+                                    ? 'glass-primary border-primary/30 text-primary shadow-liquid'
+                                    : 'glass-thin hover:glass-medium border-border/20 hover:border-border/40'
                                 }`}
+                                style={{ animationDelay: `${index * 0.05}s` }}
                               >
                                 <div className="flex items-center gap-3">
-                                  <div className={`w-3 h-3 rounded border-2 transition-all duration-200 ${
+                                  <div className={`w-4 h-4 rounded border-2 transition-all duration-200 flex items-center justify-center ${
                                     isSelected
                                       ? 'bg-primary border-primary'
                                       : 'border-border/40'
-                                  }`} />
+                                  }`}>
+                                    {isSelected && <div className="w-2 h-2 bg-white rounded" />}
+                                  </div>
                                   <span className="text-sm font-medium">{label}</span>
                                 </div>
-                                <span className="text-xs text-muted-foreground bg-secondary/50 px-2 py-1 rounded">
+                                <span className="text-xs text-muted-foreground glass-thin px-2 py-1 rounded">
                                   {cardCount}
                                 </span>
                               </button>
@@ -262,7 +268,7 @@ export default function BoardPanel({ taskly, board }: BoardPanelProps) {
             <div className="relative">
               <button
                 onClick={() => setShowBoardMenu(!showBoardMenu)}
-                className="p-3 hover:bg-secondary/50 rounded-xl transition-colors duration-200 border border-transparent hover:border-border/30"
+                className="p-3 glass-medium hover:glass-thick rounded-2xl transition-all duration-300 border border-transparent hover:border-border/30 shadow-glass liquid-glass-hover"
               >
                 <MoreVertical className="w-4 h-4" />
               </button>
@@ -273,15 +279,17 @@ export default function BoardPanel({ taskly, board }: BoardPanelProps) {
                     className="fixed inset-0 z-[9998]"
                     onClick={() => setShowBoardMenu(false)}
                   />
-                  <div className="absolute top-full right-0 mt-2 w-56 glass border border-border/30 rounded-xl shadow-card z-[9999] overflow-hidden">
+                  <div className="absolute top-full right-0 mt-2 w-56 glass-thick border border-border/30 rounded-2xl shadow-glass-xl z-[9999] overflow-hidden animate-scale-in">
                     <button
                       onClick={() => {
                         setIsEditingTitle(true);
                         setShowBoardMenu(false);
                       }}
-                      className="w-full px-4 py-3 text-left text-sm hover:bg-secondary/50 transition-colors duration-200 flex items-center gap-3"
+                      className="w-full px-4 py-3 text-left text-sm hover:glass-primary transition-all duration-200 flex items-center gap-3 liquid-glass-hover"
                     >
-                      <Settings className="w-4 h-4 text-primary" />
+                      <div className="p-1.5 bg-primary/20 rounded-lg">
+                        <Settings className="w-4 h-4 text-primary" />
+                      </div>
                       <span>Rename Board</span>
                     </button>
                     <div className="h-px bg-border/20" />
@@ -292,7 +300,9 @@ export default function BoardPanel({ taskly, board }: BoardPanelProps) {
                       }}
                       className="w-full px-4 py-3 text-left text-sm text-destructive hover:bg-destructive/10 transition-colors duration-200 flex items-center gap-3"
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <div className="p-1.5 bg-destructive/20 rounded-lg">
+                        <Trash2 className="w-4 h-4" />
+                      </div>
                       <span>Delete Board</span>
                     </button>
                   </div>
@@ -303,12 +313,15 @@ export default function BoardPanel({ taskly, board }: BoardPanelProps) {
         </div>
       </header>
 
-      {/* Columns */}
+      {/* Columns with enhanced liquid glass background */}
       <div 
         ref={setNodeRef}
         className="p-6 overflow-x-auto min-h-[calc(100vh-120px)] relative z-10"
       >
-        <div className="flex gap-6 min-w-max pb-6">
+        {/* Subtle background texture */}
+        <div className="absolute inset-0 bg-gradient-to-br from-primary/2 to-accent/2 opacity-50" />
+        
+        <div className="flex gap-6 min-w-max pb-6 relative">
           <SortableContext items={columnIds} strategy={horizontalListSortingStrategy}>
             {columns.map((column, index) => (
               <div key={column.id} className="animate-fade-in" style={{ animationDelay: `${index * 0.1}s` }}>
@@ -321,10 +334,10 @@ export default function BoardPanel({ taskly, board }: BoardPanelProps) {
             ))}
           </SortableContext>
 
-          {/* Add Column */}
+          {/* Enhanced Add Column */}
           <div className="flex-shrink-0 w-80 animate-fade-in" style={{ animationDelay: `${columns.length * 0.1}s` }}>
             {isCreatingColumn ? (
-              <div className="glass-light border border-primary/30 rounded-2xl p-6 shadow-glow">
+              <div className="glass-thick border border-primary/30 rounded-3xl p-6 shadow-liquid-hover animate-scale-in">
                 <input
                   type="text"
                   value={newColumnTitle}
@@ -360,11 +373,11 @@ export default function BoardPanel({ taskly, board }: BoardPanelProps) {
             ) : (
               <button
                 onClick={() => setIsCreatingColumn(true)}
-                className="group w-full h-32 glass-light border-2 border-dashed border-muted hover:border-primary/50 hover:bg-secondary/30 rounded-2xl transition-all duration-300 flex items-center justify-center"
+                className="group w-full h-32 glass-medium border-2 border-dashed border-muted hover:border-primary/50 hover:glass-thick rounded-3xl transition-all duration-300 flex items-center justify-center liquid-glass-hover animate-liquid-float"
               >
                 <div className="text-center">
-                  <div className="p-3 bg-gradient-primary rounded-xl mb-3 group-hover:scale-110 transition-transform duration-200 inline-block shadow-glow">
-                    <Plus className="w-6 h-6 text-white" />
+                  <div className="p-4 bg-gradient-primary rounded-2xl mb-4 group-hover:scale-110 transition-transform duration-300 inline-block shadow-liquid animate-pulse-glow">
+                    <Plus className="w-8 h-8 text-white" />
                   </div>
                   <span className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors duration-200 block">
                     Add Column

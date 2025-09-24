@@ -50,6 +50,9 @@ module.exports = {
         'gradient-secondary': 'linear-gradient(135deg, hsl(225 15% 12%) 0%, hsl(225 15% 18%) 100%)',
         'gradient-card': 'linear-gradient(135deg, hsl(225 15% 10%) 0%, hsl(225 15% 14%) 100%)',
         'gradient-hero': 'linear-gradient(135deg, hsl(262 83% 65%) 0%, hsl(195 100% 50%) 50%, hsl(142 76% 60%) 100%)',
+        'glass-gradient': 'linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.03))',
+        'liquid-glass': 'linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02))',
+        'glass-shimmer': 'linear-gradient(135deg, rgba(255,255,255,0.05), rgba(255,255,255,0.15), rgba(255,255,255,0.05))',
       },
       
       boxShadow: {
@@ -58,6 +61,11 @@ module.exports = {
         'card': '0 4px 20px rgba(0, 0, 0, 0.1)',
         'card-hover': '0 8px 32px rgba(0, 0, 0, 0.2)',
         'inner-glow': 'inset 0 1px 0 rgba(255, 255, 255, 0.1)',
+        'glass': '0 8px 32px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(255, 255, 255, 0.05)',
+        'glass-lg': '0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.08)',
+        'glass-xl': '0 35px 60px -12px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.1)',
+        'liquid': '0 8px 32px rgba(77, 77, 255, 0.15), 0 0 0 1px rgba(255, 255, 255, 0.1)',
+        'liquid-hover': '0 20px 60px rgba(77, 77, 255, 0.2), 0 0 0 1px rgba(255, 255, 255, 0.15)',
       },
       
       fontFamily: {
@@ -70,6 +78,9 @@ module.exports = {
         'slide-in': 'slideIn 0.3s ease-out',
         'pulse-glow': 'pulseGlow 2s ease-in-out infinite',
         'float': 'float 3s ease-in-out infinite',
+        'glass-shimmer': 'glassShimmer 2s ease-in-out infinite',
+        'liquid-float': 'liquidFloat 4s ease-in-out infinite',
+        'backdrop-blur': 'backdropBlur 0.3s ease-out',
       },
       
       keyframes: {
@@ -93,10 +104,45 @@ module.exports = {
           '0%, 100%': { transform: 'translateY(0px)' },
           '50%': { transform: 'translateY(-5px)' },
         },
+        glassShimmer: {
+          '0%, 100%': { 
+            backgroundImage: 'linear-gradient(135deg, rgba(255,255,255,0.05), rgba(255,255,255,0.1), rgba(255,255,255,0.05))',
+            backgroundPosition: '0% 0%'
+          },
+          '50%': { 
+            backgroundImage: 'linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.2), rgba(255,255,255,0.1))',
+            backgroundPosition: '100% 100%'
+          },
+        },
+        liquidFloat: {
+          '0%, 100%': { transform: 'translateY(0px) rotate(0deg)' },
+          '25%': { transform: 'translateY(-3px) rotate(1deg)' },
+          '50%': { transform: 'translateY(-6px) rotate(0deg)' },
+          '75%': { transform: 'translateY(-3px) rotate(-1deg)' },
+        },
+        backdropBlur: {
+          '0%': { backdropFilter: 'blur(0px)' },
+          '100%': { backdropFilter: 'blur(20px)' },
+        },
       },
       
       backdropBlur: {
         xs: '2px',
+        'ultra': '40px',
+        '3xl': '64px',
+      },
+      
+      backdropSaturate: {
+        120: '1.2',
+        150: '1.5',
+        180: '1.8',
+      },
+      
+      backdropContrast: {
+        102: '1.02',
+        105: '1.05',
+        110: '1.1',
+        120: '1.2',
       },
     },
   },
