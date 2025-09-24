@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { X, Calendar, Tag, AlignLeft, Trash2, Archive, MoreVertical, Sparkles, Save, Check } from 'lucide-react';
+import { X, Calendar, Tag, AlignLeft, Trash2, Archive, MoreVertical, Sparkles, Save, Check, Clock, MapPin } from 'lucide-react';
 import { Card } from '@/types';
 import { useTaskly } from '@/lib/hooks';
 
@@ -113,79 +113,89 @@ export default function CardModal({ taskly, card, onClose }: CardModalProps) {
   const board = taskly.appState.boards.find(b => b.id === card.boardId);
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[10000]">
-      <div className="glass border border-border/30 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl animate-scale-in">
-        {/* Header */}
-        <div className="relative p-6 border-b border-border/20 bg-gradient-to-r from-primary/5 to-accent/5">
-          <div className="absolute inset-0 bg-gradient-hero opacity-10 rounded-t-2xl" />
+    <div className="fixed inset-0 bg-black/70 backdrop-liquid flex items-center justify-center p-6 z-[10000]">
+      <div className="glass-thick border border-border/20 rounded-4xl w-full max-w-3xl max-h-[90vh] overflow-y-auto shadow-glass animate-liquid-scale backdrop-blur-4xl">
+        {/* Enhanced Header */}
+        <div className="relative p-8 border-b border-border/10 bg-gradient-hero/10 rounded-t-4xl">
+          <div className="absolute inset-0 bg-gradient-surface opacity-50 rounded-t-4xl" />
           <div className="relative flex items-start justify-between">
             <div className="flex-1">
-              <div className="flex items-center gap-3 text-sm text-muted-foreground mb-3">
-                <div className="p-1.5 bg-gradient-primary rounded-lg shadow-glow">
-                  <Sparkles className="w-3 h-3 text-white" />
+              <div className="flex items-center gap-4 text-sm text-muted-foreground mb-4">
+                <div className="p-2 bg-gradient-primary rounded-2xl shadow-glow">
+                  <Sparkles className="w-4 h-4 text-white" />
                 </div>
-                <span>{board?.title || 'Unknown Board'}</span>
-                <span className="opacity-50">/</span>
-                <span>{column?.title || 'Unknown Column'}</span>
+                <div className="flex items-center gap-3">
+                  <span className="font-medium">{board?.title || 'Unknown Board'}</span>
+                  <div className="w-1 h-1 bg-muted-foreground rounded-full opacity-50" />
+                  <span className="font-medium">{column?.title || 'Unknown Column'}</span>
+                </div>
               </div>
               <input
                 type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                className="text-2xl font-bold w-full bg-transparent border-none outline-none text-foreground placeholder-muted-foreground"
+                className="text-3xl font-bold w-full bg-transparent border-none outline-none text-foreground placeholder-muted-foreground font-display"
                 placeholder="Card title..."
               />
               {hasChanges && !isSaving && (
-                <div className="flex items-center gap-2 mt-3 text-xs text-primary">
-                  <Save className="w-3 h-3 animate-pulse" />
-                  <span>Auto-saving changes...</span>
+                <div className="flex items-center gap-3 mt-4 text-sm text-primary">
+                  <div className="p-1.5 bg-primary/20 rounded-xl">
+                    <Save className="w-3 h-3 animate-pulse" />
+                  </div>
+                  <span className="font-medium">Auto-saving changes...</span>
                 </div>
               )}
               {isSaving && (
-                <div className="flex items-center gap-2 mt-3 text-xs text-success">
-                  <div className="w-3 h-3 animate-spin rounded-full border-2 border-success border-t-transparent" />
-                  <span>Saving...</span>
+                <div className="flex items-center gap-3 mt-4 text-sm text-success">
+                  <div className="p-1.5 bg-success/20 rounded-xl">
+                    <div className="w-3 h-3 animate-spin rounded-full border-2 border-success border-t-transparent" />
+                  </div>
+                  <span className="font-medium">Saving...</span>
                 </div>
               )}
             </div>
             
-            <div className="flex items-center gap-2 ml-6">
+            <div className="flex items-center gap-3 ml-8">
               <div className="relative">
                 <button
                   onClick={() => setShowMenu(!showMenu)}
-                  className="p-3 hover:bg-secondary/50 rounded-xl transition-colors duration-200"
+                  className="p-4 hover:bg-surface/30 rounded-2xl transition-all duration-300 backdrop-blur-sm"
                   aria-label="Card menu"
                 >
-                  <MoreVertical className="w-4 h-4" />
+                  <MoreVertical className="w-5 h-5" />
                 </button>
 
                 {showMenu && (
                   <>
                     <div
-                      className="fixed inset-0 z-[9998]"
+                      className="fixed inset-0 z-[9998] backdrop-liquid-strong"
                       onClick={() => setShowMenu(false)}
                     />
-                    <div className="absolute top-full right-0 mt-2 w-52 glass border border-border/30 rounded-xl shadow-card z-[9999] overflow-hidden">
+                    <div className="absolute top-full right-0 mt-3 w-56 glass-thick border border-border/20 rounded-3xl shadow-glass z-[9999] overflow-hidden backdrop-blur-4xl">
                       <button
                         onClick={() => {
                           handleArchiveCard();
                           setShowMenu(false);
                         }}
-                        className="w-full px-4 py-3 text-left text-sm hover:bg-secondary/50 transition-colors duration-200 flex items-center gap-3"
+                        className="w-full px-6 py-4 text-left text-sm hover:bg-surface/30 transition-all duration-300 flex items-center gap-4"
                       >
-                        <Archive className="w-4 h-4 text-accent" />
-                        <span>Archive Card</span>
+                        <div className="p-2 bg-accent/20 rounded-2xl">
+                          <Archive className="w-4 h-4 text-accent" />
+                        </div>
+                        <span className="font-medium">Archive Card</span>
                       </button>
-                      <div className="h-px bg-border/20" />
+                      <div className="h-px bg-border/10 mx-4" />
                       <button
                         onClick={() => {
                           handleDeleteCard();
                           setShowMenu(false);
                         }}
-                        className="w-full px-4 py-3 text-left text-sm text-destructive hover:bg-destructive/10 transition-colors duration-200 flex items-center gap-3"
+                        className="w-full px-6 py-4 text-left text-sm text-destructive hover:bg-destructive/10 transition-all duration-300 flex items-center gap-4"
                       >
-                        <Trash2 className="w-4 h-4" />
-                        <span>Delete Card</span>
+                        <div className="p-2 bg-destructive/20 rounded-2xl">
+                          <Trash2 className="w-4 h-4" />
+                        </div>
+                        <span className="font-medium">Delete Card</span>
                       </button>
                     </div>
                   </>
@@ -194,22 +204,22 @@ export default function CardModal({ taskly, card, onClose }: CardModalProps) {
               
               <button
                 onClick={onClose}
-                className="p-3 hover:bg-secondary/50 rounded-xl transition-colors duration-200"
+                className="p-4 hover:bg-surface/30 rounded-2xl transition-all duration-300 backdrop-blur-sm"
                 aria-label="Close modal"
               >
-                <X className="w-4 h-4" />
+                <X className="w-5 h-5" />
               </button>
             </div>
           </div>
         </div>
 
-        {/* Content */}
-        <div className="p-6 space-y-8">
-          {/* Description */}
+        {/* Enhanced Content */}
+        <div className="p-8 space-y-10">
+          {/* Enhanced Description */}
           <div>
-            <label className="flex items-center gap-3 text-sm font-semibold text-foreground mb-4">
-              <div className="p-2 bg-gradient-to-br from-primary/20 to-primary/10 rounded-lg">
-                <AlignLeft className="w-4 h-4 text-primary" />
+            <label className="flex items-center gap-4 text-lg font-bold text-foreground mb-6 font-display">
+              <div className="p-3 bg-gradient-to-br from-primary/15 to-primary/5 rounded-2xl border border-primary/20">
+                <AlignLeft className="w-5 h-5 text-primary" />
               </div>
               Description
             </label>
@@ -217,77 +227,85 @@ export default function CardModal({ taskly, card, onClose }: CardModalProps) {
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Add a description to provide more context..."
-              rows={4}
-              className="input-modern w-full resize-none"
+              rows={5}
+              className="input-liquid w-full resize-none text-base leading-relaxed"
             />
           </div>
 
-          {/* Labels */}
+          {/* Enhanced Labels */}
           <div>
-            <label className="flex items-center gap-3 text-sm font-semibold text-foreground mb-4">
-              <div className="p-2 bg-gradient-to-br from-accent/20 to-accent/10 rounded-lg">
-                <Tag className="w-4 h-4 text-accent" />
+            <label className="flex items-center gap-4 text-lg font-bold text-foreground mb-6 font-display">
+              <div className="p-3 bg-gradient-to-br from-accent/15 to-accent/5 rounded-2xl border border-accent/20">
+                <Tag className="w-5 h-5 text-accent" />
               </div>
               Labels
             </label>
             
-            {/* Existing Labels */}
+            {/* Enhanced Existing Labels */}
             {labels.length > 0 && (
-              <div className="flex flex-wrap gap-2 mb-4">
+              <div className="flex flex-wrap gap-3 mb-6">
                 {labels.map((label, index) => (
                   <button
                     key={index}
-                    className="group inline-flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-primary/20 to-accent/20 text-primary text-sm rounded-xl border border-primary/20 hover:from-primary/30 hover:to-accent/30 transition-all duration-200"
+                    className="group inline-flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-primary/15 to-accent/10 text-primary text-sm rounded-2xl border border-primary/20 hover:from-primary/25 hover:to-accent/20 transition-all duration-300 backdrop-blur-sm shadow-glass-subtle"
                     onClick={() => handleRemoveLabel(label)}
                     title={`Remove "${label}" label`}
                   >
-                    <Tag className="w-3 h-3" />
-                    {label}
-                    <X className="w-3 h-3 opacity-60 group-hover:opacity-100 transition-opacity" />
+                    <div className="w-2 h-2 bg-primary rounded-full" />
+                    <span className="font-medium">{label}</span>
+                    <X className="w-4 h-4 opacity-60 group-hover:opacity-100 transition-opacity" />
                   </button>
                 ))}
               </div>
             )}
 
-            {/* Add New Label */}
-            <div className="flex gap-3">
+            {/* Enhanced Add New Label */}
+            <div className="flex gap-4">
               <input
                 type="text"
                 value={newLabel}
                 onChange={(e) => setNewLabel(e.target.value)}
                 onKeyDown={handleKeyPress}
                 placeholder="Add a label..."
-                className="input-modern flex-1"
+                className="input-liquid flex-1 text-base"
               />
               <button
                 onClick={handleAddLabel}
                 disabled={!newLabel.trim() || labels.includes(newLabel.trim())}
-                className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed px-8"
               >
                 Add Label
               </button>
             </div>
           </div>
 
-          {/* Due Date */}
+          {/* Enhanced Due Date */}
           <div>
-            <label className="flex items-center gap-3 text-sm font-semibold text-foreground mb-4">
-              <div className="p-2 bg-gradient-to-br from-success/20 to-success/10 rounded-lg">
-                <Calendar className="w-4 h-4 text-success" />
+            <label className="flex items-center gap-4 text-lg font-bold text-foreground mb-6 font-display">
+              <div className="p-3 bg-gradient-to-br from-success/15 to-success/5 rounded-2xl border border-success/20">
+                <Calendar className="w-5 h-5 text-success" />
               </div>
               Due Date
             </label>
-            <div className="flex gap-3">
-              <input
-                type="datetime-local"
-                value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
-                className="input-modern flex-1"
-              />
+            <div className="flex gap-4">
+              <div className="flex-1 relative">
+                <input
+                  type="datetime-local"
+                  value={dueDate}
+                  onChange={(e) => setDueDate(e.target.value)}
+                  className="input-liquid w-full text-base"
+                />
+                {dueDate && (
+                  <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2 text-xs text-muted-foreground">
+                    <Clock className="w-3 h-3" />
+                    <span>Due {new Date(dueDate).toLocaleDateString()}</span>
+                  </div>
+                )}
+              </div>
               {dueDate && (
                 <button
                   onClick={() => setDueDate('')}
-                  className="btn-secondary whitespace-nowrap"
+                  className="btn-secondary whitespace-nowrap px-6"
                 >
                   Clear Date
                 </button>
@@ -296,34 +314,38 @@ export default function CardModal({ taskly, card, onClose }: CardModalProps) {
           </div>
         </div>
 
-        {/* Footer with Save & Close Button */}
-        <div className="border-t border-border/20 p-6 bg-gradient-to-r from-primary/5 to-accent/5">
+        {/* Enhanced Footer */}
+        <div className="border-t border-border/10 p-8 bg-gradient-surface/50 rounded-b-4xl backdrop-blur-sm">
           <div className="flex items-center justify-between">
             <div className="text-sm text-muted-foreground">
               {hasChanges ? (
-                <span className="flex items-center gap-2 text-primary">
-                  <Save className="w-3 h-3" />
-                  Unsaved changes
+                <span className="flex items-center gap-3 text-primary">
+                  <div className="p-2 bg-primary/20 rounded-xl">
+                    <Save className="w-4 h-4" />
+                  </div>
+                  <span className="font-medium">Unsaved changes</span>
                 </span>
               ) : (
-                <span className="flex items-center gap-2 text-success">
-                  <Check className="w-3 h-3" />
-                  All changes saved
+                <span className="flex items-center gap-3 text-success">
+                  <div className="p-2 bg-success/20 rounded-xl">
+                    <Check className="w-4 h-4" />
+                  </div>
+                  <span className="font-medium">All changes saved</span>
                 </span>
               )}
             </div>
             
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-4">
               <button
                 onClick={onClose}
-                className="btn-secondary"
+                className="btn-secondary px-8 py-3"
               >
                 Close
               </button>
               <button
                 onClick={handleSaveAndClose}
                 disabled={isSaving}
-                className="btn-primary flex items-center gap-2 min-w-[140px] justify-center"
+                className="btn-primary flex items-center gap-3 min-w-[160px] justify-center px-8 py-3"
               >
                 {isSaving ? (
                   <>

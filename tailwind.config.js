@@ -7,72 +7,124 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        // Modern gradient-friendly color palette
-        background: 'hsl(225 15% 6%)', // Deep dark background
-        foreground: 'hsl(225 20% 98%)', // Light text
-        border: 'hsl(225 20% 20%)', // Subtle borders
+        // Apple-inspired Liquid Glass color palette
+        background: 'rgb(0 0 0)', // Pure black for depth
+        foreground: 'rgb(255 255 255)', // Pure white for contrast
+        border: 'rgb(58 58 60)', // Apple's subtle border
         
         primary: {
-          DEFAULT: 'hsl(262 83% 65%)', // Beautiful purple
-          foreground: 'hsl(225 20% 98%)',
-          light: 'hsl(262 83% 75%)',
-          dark: 'hsl(262 83% 55%)',
+          DEFAULT: 'rgb(99 102 255)', // Apple blue with more vibrancy
+          foreground: 'rgb(255 255 255)',
+          light: 'rgb(149 155 255)',
+          dark: 'rgb(64 68 204)',
         },
         
         secondary: {
-          DEFAULT: 'hsl(225 15% 12%)', // Dark cards
-          foreground: 'hsl(225 15% 85%)',
-          light: 'hsl(225 15% 18%)',
+          DEFAULT: 'rgb(28 28 30)', // Apple's dark surface
+          foreground: 'rgb(229 229 234)',
+          light: 'rgb(44 44 46)',
         },
         
         muted: {
-          DEFAULT: 'hsl(225 15% 15%)',
-          foreground: 'hsl(225 10% 65%)',
+          DEFAULT: 'rgb(44 44 46)',
+          foreground: 'rgb(174 174 178)',
         },
         
         accent: {
-          DEFAULT: 'hsl(195 100% 50%)', // Bright cyan
-          foreground: 'hsl(225 20% 98%)',
+          DEFAULT: 'rgb(255 149 0)', // Apple orange
+          foreground: 'rgb(255 255 255)',
+          light: 'rgb(255 179 64)',
+          dark: 'rgb(204 119 0)',
         },
         
-        success: 'hsl(142 76% 60%)',
-        warning: 'hsl(45 93% 65%)',
+        surface: 'rgb(28 28 30)',
+        card: 'rgb(44 44 46)',
+        
+        success: 'rgb(52 199 89)', // Apple green
+        warning: 'rgb(255 204 0)', // Apple yellow
         destructive: {
-          DEFAULT: 'hsl(0 84% 65%)',
-          foreground: 'hsl(225 20% 98%)',
+          DEFAULT: 'rgb(255 69 58)', // Apple red
+          foreground: 'rgb(255 255 255)',
         },
+      },
+      
+      fontFamily: {
+        sans: ['SF Pro', 'SF Pro Display', '-apple-system', 'BlinkMacSystemFont', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        display: ['SF Pro Display', '-apple-system', 'BlinkMacSystemFont', 'ui-sans-serif', 'system-ui', 'sans-serif'],
       },
       
       backgroundImage: {
         'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
         'gradient-conic': 'conic-gradient(from 180deg at 50% 50%, var(--tw-gradient-stops))',
-        'gradient-primary': 'linear-gradient(135deg, hsl(262 83% 65%) 0%, hsl(195 100% 50%) 100%)',
-        'gradient-secondary': 'linear-gradient(135deg, hsl(225 15% 12%) 0%, hsl(225 15% 18%) 100%)',
-        'gradient-card': 'linear-gradient(135deg, hsl(225 15% 10%) 0%, hsl(225 15% 14%) 100%)',
-        'gradient-hero': 'linear-gradient(135deg, hsl(262 83% 65%) 0%, hsl(195 100% 50%) 50%, hsl(142 76% 60%) 100%)',
+        'gradient-primary': 'linear-gradient(135deg, rgb(99 102 255) 0%, rgb(175 82 222) 50%, rgb(255 149 0) 100%)',
+        'gradient-secondary': 'linear-gradient(135deg, rgb(28 28 30) 0%, rgb(44 44 46) 100%)',
+        'gradient-card': 'linear-gradient(135deg, rgba(99 102 255, 0.03) 0%, rgba(255 149 0, 0.02) 100%)',
+        'gradient-hero': 'linear-gradient(135deg, rgb(99 102 255) 0%, rgb(175 82 222) 30%, rgb(255 149 0) 70%, rgb(52 199 89) 100%)',
+        'gradient-surface': 'linear-gradient(145deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.01) 100%)',
+        'gradient-glass': 'linear-gradient(145deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 100%)',
       },
       
       boxShadow: {
-        'glow': '0 0 20px rgba(147, 51, 234, 0.3)',
-        'glow-lg': '0 0 40px rgba(147, 51, 234, 0.2)',
-        'card': '0 4px 20px rgba(0, 0, 0, 0.1)',
-        'card-hover': '0 8px 32px rgba(0, 0, 0, 0.2)',
-        'inner-glow': 'inset 0 1px 0 rgba(255, 255, 255, 0.1)',
+        'glow': '0 0 24px rgba(99, 102, 255, 0.25)',
+        'glow-lg': '0 0 48px rgba(99, 102, 255, 0.3)',
+        'glow-accent': '0 0 24px rgba(255, 149, 0, 0.25)',
+        'card': '0 4px 16px rgba(0, 0, 0, 0.25), 0 2px 8px rgba(0, 0, 0, 0.15)',
+        'card-hover': '0 8px 32px rgba(0, 0, 0, 0.35), 0 4px 16px rgba(0, 0, 0, 0.25)',
+        'card-subtle': '0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24)',
+        'inner-glow': 'inset 0 1px 0 rgba(255, 255, 255, 0.1), inset 0 -1px 0 rgba(0, 0, 0, 0.1)',
+        'glass': '0 8px 32px rgba(0, 0, 0, 0.3)',
+        'glass-subtle': '0 2px 16px rgba(0, 0, 0, 0.2)',
       },
       
-      fontFamily: {
-        sans: ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+      borderRadius: {
+        'xl': '16px',
+        '2xl': '20px',
+        '3xl': '24px',
+        '4xl': '32px',
       },
       
       animation: {
-        'fade-in': 'fadeIn 0.3s ease-in-out',
-        'scale-in': 'scaleIn 0.2s ease-out',
-        'slide-in': 'slideIn 0.3s ease-out',
+        'liquid-in': 'liquidIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+        'liquid-scale': 'liquidScale 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+        'liquid-slide': 'liquidSlide 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+        'liquid-glow': 'liquidGlow 3s ease-in-out infinite',
+        'liquid-float': 'liquidFloat 4s ease-in-out infinite',
+        'fade-in': 'fadeIn 0.4s ease-out forwards',
+        'scale-in': 'scaleIn 0.3s ease-out forwards',
+        'slide-in': 'slideIn 0.4s ease-out forwards',
         'pulse-glow': 'pulseGlow 2s ease-in-out infinite',
         'float': 'float 3s ease-in-out infinite',
       },
       
       keyframes: {
+        liquidIn: {
+          '0%': { 
+            opacity: '0', 
+            transform: 'translateY(24px) scale(0.95)',
+            backdropFilter: 'blur(0px)',
+          },
+          '100%': { 
+            opacity: '1', 
+            transform: 'translateY(0) scale(1)',
+            backdropFilter: 'blur(20px)',
+          },
+        },
+        liquidScale: {
+          '0%': { opacity: '0', transform: 'scale(0.8)' },
+          '100%': { opacity: '1', transform: 'scale(1)' },
+        },
+        liquidSlide: {
+          '0%': { opacity: '0', transform: 'translateX(-32px)' },
+          '100%': { opacity: '1', transform: 'translateX(0)' },
+        },
+        liquidGlow: {
+          '0%, 100%': { boxShadow: '0 0 24px rgba(99, 102, 255, 0.25)' },
+          '50%': { boxShadow: '0 0 48px rgba(99, 102, 255, 0.4)' },
+        },
+        liquidFloat: {
+          '0%, 100%': { transform: 'translateY(0px)' },
+          '50%': { transform: 'translateY(-8px)' },
+        },
         fadeIn: {
           '0%': { opacity: '0', transform: 'translateY(10px)' },
           '100%': { opacity: '1', transform: 'translateY(0)' },
@@ -86,8 +138,8 @@ module.exports = {
           '100%': { opacity: '1', transform: 'translateX(0)' },
         },
         pulseGlow: {
-          '0%, 100%': { boxShadow: '0 0 20px rgba(147, 51, 234, 0.3)' },
-          '50%': { boxShadow: '0 0 40px rgba(147, 51, 234, 0.6)' },
+          '0%, 100%': { boxShadow: '0 0 20px rgba(99, 102, 255, 0.3)' },
+          '50%': { boxShadow: '0 0 40px rgba(99, 102, 255, 0.6)' },
         },
         float: {
           '0%, 100%': { transform: 'translateY(0px)' },
@@ -97,6 +149,26 @@ module.exports = {
       
       backdropBlur: {
         xs: '2px',
+        '3xl': '40px',
+        '4xl': '80px',
+      },
+      
+      // Enhanced spacing for liquid design
+      spacing: {
+        '18': '4.5rem',
+        '88': '22rem',
+        '128': '32rem',
+      },
+      
+      // Refined transitions
+      transitionTimingFunction: {
+        'liquid': 'cubic-bezier(0.16, 1, 0.3, 1)',
+        'smooth': 'cubic-bezier(0.4, 0, 0.2, 1)',
+      },
+      
+      transitionDuration: {
+        '400': '400ms',
+        '600': '600ms',
       },
     },
   },

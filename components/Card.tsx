@@ -1,6 +1,6 @@
 'use client';
 
-import { Calendar, Tag, AlignLeft, Clock, Flame } from 'lucide-react';
+import { Calendar, Tag, AlignLeft, Clock, Flame, Sparkles } from 'lucide-react';
 import { useSortable } from '@dnd-kit/sortable';
 import { Card } from '@/types';
 
@@ -28,7 +28,7 @@ export default function CardComponent({ card, onClick }: CardProps) {
   const style = {
     transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
     transition,
-    opacity: isDragging ? 0.5 : 1,
+    opacity: isDragging ? 0.6 : 1,
   };
 
   const formatDate = (dateString: string) => {
@@ -57,21 +57,27 @@ export default function CardComponent({ card, onClick }: CardProps) {
       style={style}
       {...attributes}
       {...listeners}
-      className="group glass-light border border-border/20 rounded-xl p-4 cursor-pointer hover:border-primary/30 hover:shadow-card-hover card-hover transition-all duration-300 relative overflow-hidden"
+      className="group card-liquid p-5 cursor-pointer hover:border-primary/20 relative overflow-hidden transition-all duration-500"
     >
-      {/* Subtle gradient overlay */}
-      <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-accent/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-xl" />
+      {/* Liquid glass overlay */}
+      <div className="absolute inset-0 bg-gradient-to-br from-primary/3 via-transparent to-accent/2 opacity-0 group-hover:opacity-100 transition-all duration-500 rounded-3xl" />
       
-      <div className="relative">
-        <h4 className="text-sm font-semibold text-foreground mb-3 leading-tight group-hover:text-primary transition-colors duration-200">
+      {/* Subtle inner glow */}
+      <div className="absolute inset-0 rounded-3xl shadow-inner opacity-50" />
+      
+      <div className="relative z-10">
+        {/* Card Title with enhanced styling */}
+        <h4 className="text-sm font-semibold text-foreground mb-4 leading-snug group-hover:text-primary transition-all duration-300 line-clamp-2">
           {card.title}
         </h4>
 
-        {/* Description - Show actual content instead of just indicator */}
+        {/* Description with refined presentation */}
         {card.description && (
-          <div className="mb-3 p-2 bg-secondary/30 rounded-lg border border-border/20">
-            <div className="flex items-center gap-2 mb-1">
-              <AlignLeft className="w-3 h-3 text-muted-foreground" />
+          <div className="mb-4 p-3 glass-thin rounded-2xl border border-border/10 backdrop-blur-sm">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="p-1 bg-gradient-primary rounded-lg">
+                <AlignLeft className="w-2.5 h-2.5 text-white" />
+              </div>
               <span className="text-xs text-muted-foreground font-medium">Description</span>
             </div>
             <p className="text-xs text-foreground/80 line-clamp-2 leading-relaxed">
@@ -80,62 +86,77 @@ export default function CardComponent({ card, onClick }: CardProps) {
           </div>
         )}
 
-        {/* Card Details */}
-        <div className="space-y-2.5">
-          {/* Labels */}
+        {/* Card Details with enhanced spacing */}
+        <div className="space-y-3">
+          {/* Labels with refined styling */}
           {card.labels && card.labels.length > 0 && (
-            <div className="flex flex-wrap gap-1.5">
+            <div className="flex flex-wrap gap-2">
               {card.labels.map((label, index) => (
                 <span
                   key={index}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 bg-gradient-to-r from-primary/20 to-accent/20 text-primary text-xs rounded-full border border-primary/20 font-medium"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-primary/15 to-accent/10 text-primary text-xs rounded-full border border-primary/20 font-medium backdrop-blur-sm shadow-glass-subtle"
                 >
-                  <Tag className="w-2.5 h-2.5" />
+                  <div className="w-1.5 h-1.5 bg-primary rounded-full opacity-80" />
                   {label}
                 </span>
               ))}
             </div>
           )}
 
-          {/* Due Date */}
+          {/* Due Date with enhanced visual hierarchy */}
           {card.dueDate && (
-            <div className={`flex items-center gap-2 text-xs font-medium px-2.5 py-1.5 rounded-lg border ${
+            <div className={`flex items-center gap-3 text-xs font-medium px-3 py-2 rounded-2xl border backdrop-blur-sm transition-all duration-300 ${
               isOverdue(card.dueDate) 
-                ? 'text-destructive bg-destructive/10 border-destructive/20' 
+                ? 'text-destructive bg-destructive/10 border-destructive/20 shadow-glow-accent' 
                 : isUpcoming(card.dueDate)
                 ? 'text-warning bg-warning/10 border-warning/20'
                 : 'text-success bg-success/10 border-success/20'
             }`}>
-              {isOverdue(card.dueDate) ? (
-                <Flame className="w-3 h-3" />
-              ) : (
-                <Calendar className="w-3 h-3" />
-              )}
-              <span>{formatDate(card.dueDate)}</span>
-              {isOverdue(card.dueDate) && (
-                <span className="text-xs opacity-80">Overdue</span>
-              )}
-              {isUpcoming(card.dueDate) && !isOverdue(card.dueDate) && (
-                <div className="flex items-center gap-1">
-                  <Clock className="w-2.5 h-2.5" />
-                  <span className="text-xs opacity-80">Soon</span>
-                </div>
-              )}
+              <div className={`p-1.5 rounded-lg ${
+                isOverdue(card.dueDate) 
+                  ? 'bg-destructive/20' 
+                  : isUpcoming(card.dueDate)
+                  ? 'bg-warning/20'
+                  : 'bg-success/20'
+              }`}>
+                {isOverdue(card.dueDate) ? (
+                  <Flame className="w-3 h-3" />
+                ) : (
+                  <Calendar className="w-3 h-3" />
+                )}
+              </div>
+              
+              <div className="flex-1">
+                <div className="font-semibold">{formatDate(card.dueDate)}</div>
+                {isOverdue(card.dueDate) && (
+                  <div className="text-xs opacity-80 font-normal">Overdue</div>
+                )}
+                {isUpcoming(card.dueDate) && !isOverdue(card.dueDate) && (
+                  <div className="flex items-center gap-1 text-xs opacity-80">
+                    <Clock className="w-2.5 h-2.5" />
+                    <span>Due soon</span>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
         
-        {/* Click target overlay - prevents drag when clicking to open modal */}
+        {/* Click target overlay */}
         <div 
-          className="absolute inset-0 cursor-pointer z-10" 
+          className="absolute inset-0 cursor-pointer z-20 rounded-3xl" 
           onClick={(e) => {
             e.stopPropagation();
             onClick();
           }}
         />
         
-        {/* Hover indicator */}
-        <div className="absolute -top-1 -right-1 w-2 h-2 bg-primary rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200 shadow-glow" />
+        {/* Enhanced hover indicator */}
+        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-all duration-300">
+          <div className="p-1.5 bg-gradient-primary rounded-xl shadow-glow animate-liquid-glow">
+            <Sparkles className="w-3 h-3 text-white" />
+          </div>
+        </div>
       </div>
     </div>
   );

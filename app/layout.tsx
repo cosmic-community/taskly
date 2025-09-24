@@ -6,9 +6,9 @@ import CosmicBadge from '@/components/CosmicBadge'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'Taskly - Personal Kanban Board',
-  description: 'A minimal personal Trello-style Kanban board. Create boards, columns, and cards with drag-and-drop functionality.',
-  keywords: 'kanban, trello, tasks, productivity, project management',
+  title: 'Taskly - Liquid Glass Kanban Board',
+  description: 'A beautiful personal Kanban board with Apple-inspired liquid glass design. Create boards, columns, and cards with sophisticated drag-and-drop functionality.',
+  keywords: 'kanban, trello, tasks, productivity, project management, liquid glass, apple design',
 }
 
 export default function RootLayout({
@@ -25,7 +25,7 @@ export default function RootLayout({
         {/* Console capture script for dashboard debugging */}
         <script src="/dashboard-console-capture.js" />
         {children}
-        {/* Built with Cosmic badge */}
+        {/* Built with Cosmic badge - dark mode for liquid glass design */}
         <CosmicBadge bucketSlug={bucketSlug} />
       </body>
     </html>
